@@ -1,0 +1,106 @@
+Flutter crash report.
+Please report a bug at https://github.com/flutter/flutter/issues.
+
+## command
+
+flutter build macos --debug
+
+## exception
+
+ProcessException: ProcessException: Process exited abnormally with exit code 70:
+2026-03-17 11:36:53.735 xcodebuild[67396:330351] [MT] DVTPlugInLoading: Failed to load code for plug-in com.apple.dt.IDESimulatorFoundation (/Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework), error = Error Domain=NSCocoaErrorDomain Code=3588 "dlopen(/Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework/IDESimulatorFoundation, 0x0109): Symbol not found: _$s12DVTDownloads21DownloadableAssetTypeO22developerDocumentationyA2CmFWC
+  Referenced from: <5F4A2DE2-B0FB-381B-BB7C-8CDF8BE61D20> /Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework/Versions/A/IDESimulatorFoundation
+  Expected in:     <0DE3ADE8-80EF-343E-9907-002BE7227273> /Library/Developer/PrivateFrameworks/DVTDownloads.framework/Versions/A/DVTDownloads" UserInfo={NSLocalizedFailureReason=The bundle couldn’t be loaded., NSLocalizedRecoverySuggestion=Try reinstalling the bundle., NSFilePath=/Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework/IDESimulatorFoundation, NSDebugDescription=dlopen(/Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework/IDESimulatorFoundation, 0x0109): Symbol not found: _$s12DVTDownloads21DownloadableAssetTypeO22developerDocumentationyA2CmFWC
+  Referenced from: <5F4A2DE2-B0FB-381B-BB7C-8CDF8BE61D20> /Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework/Versions/A/IDESimulatorFoundation
+  Expected in:     <0DE3ADE8-80EF-343E-9907-002BE7227273> /Library/Developer/PrivateFrameworks/DVTDownloads.framework/Versions/A/DVTDownloads, NSBundlePath=/Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework, NSLocalizedDescription=The bundle “IDESimulatorFoundation” couldn’t be loaded.}, dyldError = dlopen(/Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework/IDESimulatorFoundation, 0x0000): Symbol not found: _$s12DVTDownloads21DownloadableAssetTypeO22developerDocumentationyA2CmFWC
+  Referenced from: <5F4A2DE2-B0FB-381B-BB7C-8CDF8BE61D20> /Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework/Versions/A/IDESimulatorFoundation
+  Expected in:     <0DE3ADE8-80EF-343E-9907-002BE7227273> /Library/Developer/PrivateFrameworks/DVTDownloads.framework/Versions/A/DVTDownloads
+
+A required plugin failed to load. Please ensure system content is up-to-date — try running 'xcodebuild -runFirstLaunch'.
+2026-03-17 11:36:53.736 xcodebuild[67396:330351] [MT] DVTPlugInExtensionFaulting: Failed to fire fault for extension IDESimulatorFoundation/IDESimulatorFoundation.plugindata/plug-in[1]/extension[1]: Error Domain=DVTPlugInErrorDomain Code=2 "Loading a plug-in failed." UserInfo={DVTPlugInIdentifierErrorKey=com.apple.dt.IDESimulatorFoundation, DVTPlugInExecutablePathErrorKey=/Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework/IDESimulatorFoundation, NSLocalizedRecoverySuggestion=The plug-in or one of its prerequisite plug-ins may be missing or damaged and may need to be reinstalled., DVTPlugInDYLDErrorMessageErrorKey=dlopen(/Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework/IDESimulatorFoundation, 0x0000): Symbol not found: _$s12DVTDownloads21DownloadableAssetTypeO22developerDocumentationyA2CmFWC
+  Referenced from: <5F4A2DE2-B0FB-381B-BB7C-8CDF8BE61D20> /Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework/Versions/A/IDESimulatorFoundation
+  Expected in:     <0DE3ADE8-80EF-343E-9907-002BE7227273> /Library/Developer/PrivateFrameworks/DVTDownloads.framework/Versions/A/DVTDownloads, NSLocalizedDescription=Loading a plug-in failed., NSFilePath=/Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework, NSLocalizedFailureReason=The plug-in “com.apple.dt.IDESimulatorFoundation” at path “/Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework” could not be loaded.  The plug-in or one of its prerequisite plug-ins may be missing or damaged., NSUnderlyingError=0xb4626eaf0 {Error Domain=NSCocoaErrorDomain Code=3588 "dlopen(/Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework/IDESimulatorFoundation, 0x0109): Symbol not found: _$s12DVTDownloads21DownloadableAssetTypeO22developerDocumentationyA2CmFWC
+  Referenced from: <5F4A2DE2-B0FB-381B-BB7C-8CDF8BE61D20> /Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework/Versions/A/IDESimulatorFoundation
+  Expected in:     <0DE3ADE8-80EF-343E-9907-002BE7227273> /Library/Developer/PrivateFrameworks/DVTDownloads.framework/Versions/A/DVTDownloads" UserInfo={NSLocalizedFailureReason=The bundle couldn’t be loaded., NSLocalizedRecoverySuggestion=Try reinstalling the bundle., NSFilePath=/Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework/IDESimulatorFoundation, NSDebugDescription=dlopen(/Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework/IDESimulatorFoundation, 0x0109): Symbol not found: _$s12DVTDownloads21DownloadableAssetTypeO22developerDocumentationyA2CmFWC
+  Referenced from: <5F4A2DE2-B0FB-381B-BB7C-8CDF8BE61D20> /Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework/Versions/A/IDESimulatorFoundation
+  Expected in:     <0DE3ADE8-80EF-343E-9907-002BE7227273> /Library/Developer/PrivateFrameworks/DVTDownloads.framework/Versions/A/DVTDownloads, NSBundlePath=/Applications/Xcode.app/Contents/Frameworks/IDESimulatorFoundation.framework, NSLocalizedDescription=The bundle “IDESimulatorFoundation” couldn’t be loaded.}}}
+
+
+xcodebuild failed to load a required plug-in. Ensure your system frameworks are up-to-date by running 'xcodebuild -runFirstLaunch'
+  Command: /usr/bin/arch -arm64e xcrun xcodebuild -list -project Runner.xcodeproj
+
+```
+#0      RunResult.throwException (package:flutter_tools/src/base/process.dart:153:5)
+#1      _DefaultProcessUtils.run (package:flutter_tools/src/base/process.dart:379:19)
+<asynchronous suspension>
+#2      XcodeProjectInterpreter.getInfo (package:flutter_tools/src/ios/xcodeproj.dart:328:30)
+<asynchronous suspension>
+#3      buildMacOS (package:flutter_tools/src/macos/build_macos.dart:127:41)
+<asynchronous suspension>
+#4      BuildMacosCommand.runCommand (package:flutter_tools/src/commands/build_macos.dart:61:5)
+<asynchronous suspension>
+#5      FlutterCommand.run.<anonymous closure> (package:flutter_tools/src/runner/flutter_command.dart:1590:27)
+<asynchronous suspension>
+#6      AppContext.run.<anonymous closure> (package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#7      CommandRunner.runCommand (package:args/command_runner.dart:212:13)
+<asynchronous suspension>
+#8      FlutterCommandRunner.runCommand.<anonymous closure> (package:flutter_tools/src/runner/flutter_command_runner.dart:496:9)
+<asynchronous suspension>
+#9      AppContext.run.<anonymous closure> (package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#10     FlutterCommandRunner.runCommand (package:flutter_tools/src/runner/flutter_command_runner.dart:431:5)
+<asynchronous suspension>
+#11     FlutterCommandRunner.run.<anonymous closure> (package:flutter_tools/src/runner/flutter_command_runner.dart:307:33)
+<asynchronous suspension>
+#12     run.<anonymous closure>.<anonymous closure> (package:flutter_tools/runner.dart:104:11)
+<asynchronous suspension>
+#13     AppContext.run.<anonymous closure> (package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#14     main (package:flutter_tools/executable.dart:103:3)
+<asynchronous suspension>
+```
+
+## flutter doctor
+
+```
+[✓] Flutter (Channel stable, 3.41.4, on macOS 26.3 25D125 darwin-arm64, locale en-US) [20.6s]
+    • Flutter version 3.41.4 on channel stable at /opt/homebrew/share/flutter
+    • Upstream repository https://github.com/flutter/flutter.git
+    • Framework revision ff37bef603 (13 days ago), 2026-03-03 16:03:22 -0800
+    • Engine revision e4b8dca3f1
+    • Dart version 3.11.1
+    • DevTools version 2.54.1
+    • Feature flags: enable-web, enable-linux-desktop, enable-macos-desktop, enable-windows-desktop, enable-android, enable-ios, cli-animations, enable-native-assets, omit-legacy-version-file, enable-lldb-debugging, enable-uiscene-migration
+
+[✗] Android toolchain - develop for Android devices [20.7s]
+    • Android SDK at /Users/walterheck/Library/Android/sdk
+    • Emulator version 35.1.21.0 (build_id 12325540) (CL:N/A)
+    ✗ cmdline-tools component is missing.
+      Try installing or updating Android Studio.
+      Alternatively, download the tools from https://developer.android.com/studio#command-line-tools-only and make sure to set the ANDROID_HOME environment variable.
+      See https://developer.android.com/studio/command-line for more details.
+
+[!] Xcode - develop for iOS and macOS (Xcode 26.3) [24.7s]
+    • Xcode at /Applications/Xcode.app/Contents/Developer
+    • Build 17C529
+    ! iOS 26.2 Simulator not installed; this may be necessary for iOS and macOS development.
+      To download and install the platform, open Xcode, select Xcode > Settings > Components,
+      and click the GET button for the required platform.
+
+      For more information, please visit:
+        https://developer.apple.com/documentation/xcode/installing-additional-simulator-runtimes
+    • CocoaPods version 1.16.2
+
+[✓] Chrome - develop for the web [9ms]
+    • Chrome at /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+[✓] Connected device (2 available) [7.5s]
+    • macOS (desktop) • macos  • darwin-arm64   • macOS 26.3 25D125 darwin-arm64
+    • Chrome (web)    • chrome • web-javascript • Google Chrome 145.0.7632.160
+
+[✓] Network resources [507ms]
+    • All expected network resources are available.
+
+! Doctor found issues in 2 categories.
+```

@@ -1,0 +1,13 @@
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.fvm/
+.idea/
+.metadata
+.packages
+.pub/
+/build/
+/coverage/
+/ios/Flutter/Flutter.podspec
+/pubspec.lock
+

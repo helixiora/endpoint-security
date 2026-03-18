@@ -1,0 +1,149 @@
+name: Build All Platforms
+
+on:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.4'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+  build:
+    name: Build ${{ matrix.label }}
+    needs: checks
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Web
+            os: ubuntu-latest
+            build_command: flutter build web
+            artifact_name: helixiora-web
+            artifact_path: build/web
+            shell: bash
+            install_linux_deps: false
+            setup_java: false
+          - label: Linux
+            os: ubuntu-latest
+            build_command: flutter build linux --release
+            artifact_name: helixiora-linux
+            artifact_path: build/linux/x64/release/bundle
+            shell: bash
+            install_linux_deps: true
+            setup_java: false
+          - label: Android APK
+            os: ubuntu-latest
+            build_command: flutter build apk --release
+            artifact_name: helixiora-android-apk
+            artifact_path: build/app/outputs/flutter-apk/app-release.apk
+            shell: bash
+            install_linux_deps: false
+            setup_java: true
+          - label: Windows
+            os: windows-latest
+            build_command: flutter build windows --release
+            artifact_name: helixiora-windows
+            artifact_path: build/windows/x64/runner/Release
+            shell: pwsh
+            install_linux_deps: false
+            setup_java: false
+          - label: macOS
+            os: macos-latest
+            build_command: flutter build macos --release
+            artifact_name: helixiora-macos
+            artifact_path: build/macos/Build/Products/Release/Helixiora Endpoint Security.app
+            shell: bash
+            install_linux_deps: false
+            setup_java: false
+          - label: iOS Unsigned
+            os: macos-latest
+            build_command: flutter build ios --release --no-codesign
+            artifact_name: helixiora-ios-unsigned
+            artifact_path: build/ios/iphoneos
+            shell: bash
+            install_linux_deps: false
+            setup_java: false
+
+    env:
+      ORGANIZATION_NAME: ${{ vars.ORGANIZATION_NAME || 'Helixiora' }}
+      SUBMISSION_ENDPOINT: ${{ secrets.SUBMISSION_ENDPOINT }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        if: matrix.setup_java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Linux desktop dependencies
+        if: matrix.install_linux_deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libblkid-dev liblzma-dev
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.4'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+        shell: ${{ matrix.shell }}
+
+      - name: Build artifact (Unix)
+        if: matrix.shell == 'bash'
+        shell: bash
+        run: |
+          args=(
+            --dart-define=ORGANIZATION_NAME="$ORGANIZATION_NAME"
+          )
+          if [ -n "$SUBMISSION_ENDPOINT" ]; then
+            args+=(--dart-define=SUBMISSION_ENDPOINT="$SUBMISSION_ENDPOINT")
+          fi
+          ${{ matrix.build_command }} "${args[@]}"
+
+      - name: Build artifact (Windows)
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
+        run: |
+          $args = @(
+            "--dart-define=ORGANIZATION_NAME=$env:ORGANIZATION_NAME"
+          )
+          if ($env:SUBMISSION_ENDPOINT) {
+            $args += "--dart-define=SUBMISSION_ENDPOINT=$env:SUBMISSION_ENDPOINT"
+          }
+          & flutter build windows --release @args
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
+          if-no-files-found: error

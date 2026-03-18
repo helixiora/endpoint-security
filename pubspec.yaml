@@ -1,0 +1,47 @@
+name: endpoint_security_checkin
+description: Cross-platform endpoint protection check-in for employees.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  device_info_plus: ^10.1.2
+  http: ^1.2.2
+  shared_preferences: ^2.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/branding/
+
+flutter_launcher_icons:
+  android: 'launcher_icon'
+  ios: true
+  image_path: 'assets/branding/helixiora_mark.png'
+  min_sdk_android: 21
+  remove_alpha_ios: true
+  background_color_ios: '#FFFFFF'
+  web:
+    generate: true
+    image_path: 'assets/branding/helixiora_mark.png'
+    background_color: '#FFFFFF'
+    theme_color: '#081847'
+  windows:
+    generate: true
+    image_path: 'assets/branding/helixiora_mark.png'
+    icon_size: 64
+  macos:
+    generate: true
+    image_path: 'assets/branding/helixiora_mark.png'
+
