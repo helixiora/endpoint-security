@@ -2,6 +2,7 @@ param(
     [string]$FlutterExe = "flutter",
     [string]$OrganizationName = "Helixiora",
     [string]$SubmissionEndpoint = "",
+    [string]$AppVersion = "",
     [switch]$SkipAnalyze,
     [switch]$SkipTests,
     [switch]$ZipArtifact
@@ -18,6 +19,13 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $repoRoot
 
 try {
+    if (-not $AppVersion.Trim()) {
+        $AppVersion = (git -C $repoRoot describe --tags --always --dirty 2>$null).Trim()
+        if (-not $AppVersion) {
+            $AppVersion = "0.1.0-dev"
+        }
+    }
+
     & $FlutterExe --version | Out-Host
     & $FlutterExe pub get
 
@@ -33,7 +41,8 @@ try {
         "build",
         "windows",
         "--release",
-        "--dart-define=ORGANIZATION_NAME=$OrganizationName"
+        "--dart-define=ORGANIZATION_NAME=$OrganizationName",
+        "--dart-define=APP_VERSION=$AppVersion"
     )
 
     if ($SubmissionEndpoint.Trim()) {
@@ -67,4 +76,3 @@ try {
 finally {
     Pop-Location
 }
-

@@ -11,6 +11,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -88,10 +90,13 @@ jobs:
     env:
       ORGANIZATION_NAME: ${{ vars.ORGANIZATION_NAME || 'Helixiora' }}
       SUBMISSION_ENDPOINT: ${{ secrets.SUBMISSION_ENDPOINT }}
+      APP_VERSION: ''
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Java
         if: matrix.setup_java
@@ -116,12 +121,25 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Resolve app version
+        if: matrix.shell == 'bash'
+        shell: bash
+        run: echo "APP_VERSION=$(./scripts/git-version.sh)" >> "$GITHUB_ENV"
+
+      - name: Resolve app version (Windows)
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
+        run: |
+          $appVersion = (git describe --tags --always --dirty).Trim()
+          "APP_VERSION=$appVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Build artifact (Unix)
         if: matrix.shell == 'bash'
         shell: bash
         run: |
           args=(
             --dart-define=ORGANIZATION_NAME="$ORGANIZATION_NAME"
+            --dart-define=APP_VERSION="$APP_VERSION"
           )
           if [ -n "$SUBMISSION_ENDPOINT" ]; then
             args+=(--dart-define=SUBMISSION_ENDPOINT="$SUBMISSION_ENDPOINT")
@@ -134,6 +152,7 @@ jobs:
         run: |
           $args = @(
             "--dart-define=ORGANIZATION_NAME=$env:ORGANIZATION_NAME"
+            "--dart-define=APP_VERSION=$env:APP_VERSION"
           )
           if ($env:SUBMISSION_ENDPOINT) {
             $args += "--dart-define=SUBMISSION_ENDPOINT=$env:SUBMISSION_ENDPOINT"

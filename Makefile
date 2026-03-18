@@ -4,7 +4,7 @@ FLUTTER ?= flutter
 DART ?= dart
 NODE ?= node
 
-.PHONY: help bootstrap format format-check analyze test apps-script-check check pre-commit hooks-install
+.PHONY: help bootstrap format format-check analyze test apps-script-check check pre-commit hooks-install version
 
 help:
 	@printf '%s\n' \
@@ -16,7 +16,8 @@ help:
 		'apps-script-check Validate backend/google-apps-script/Code.gs' \
 		'check             Run all local quality checks' \
 		'pre-commit        Alias for check' \
-		'hooks-install     Install repository hooks (prefers pre-commit when available)'
+		'hooks-install     Install repository hooks (prefers pre-commit when available)' \
+		'version           Print the git-derived app version'
 
 bootstrap:
 	$(FLUTTER) pub get
@@ -46,3 +47,6 @@ hooks-install:
 	else \
 		git config core.hooksPath .githooks; \
 	fi
+
+version:
+	./scripts/git-version.sh

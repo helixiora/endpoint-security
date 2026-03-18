@@ -7,12 +7,48 @@
 
 #include "flutter/generated_plugin_registrant.h"
 
+static constexpr char kWindowTitleChannelName[] = "helixiora/window_title";
+
 struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
+
+static void window_title_method_call_cb(FlMethodChannel* channel,
+                                        FlMethodCall* method_call,
+                                        gpointer user_data) {
+  GtkWindow* window = GTK_WINDOW(user_data);
+  const gchar* method = fl_method_call_get_name(method_call);
+
+  if (strcmp(method, "setWindowTitle") != 0) {
+    g_autoptr(FlMethodResponse) response =
+        FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+
+  FlValue* args = fl_method_call_get_args(method_call);
+  if (args == nullptr || fl_value_get_type(args) != FL_VALUE_TYPE_STRING) {
+    g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+        fl_method_error_response_new("invalid-args",
+                                     "Expected a string title.", nullptr));
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+
+  gtk_window_set_title(window, fl_value_get_string(args));
+
+  GtkWidget* titlebar = gtk_window_get_titlebar(window);
+  if (GTK_IS_HEADER_BAR(titlebar)) {
+    gtk_header_bar_set_title(GTK_HEADER_BAR(titlebar), fl_value_get_string(args));
+  }
+
+  g_autoptr(FlMethodResponse) response =
+      FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+  fl_method_call_respond(method_call, response, nullptr);
+}
 
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
@@ -74,6 +110,16 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_realize(GTK_WIDGET(view));
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
+
+  FlBinaryMessenger* messenger = fl_engine_get_binary_messenger(fl_view_get_engine(view));
+  g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
+  FlMethodChannel* channel = fl_method_channel_new(
+      messenger, kWindowTitleChannelName, FL_METHOD_CODEC(codec));
+  fl_method_channel_set_method_call_handler(
+      channel, window_title_method_call_cb, g_object_ref(window),
+      g_object_unref);
+  g_object_set_data_full(G_OBJECT(window), "window-title-channel",
+                         g_object_ref(channel), g_object_unref);
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }

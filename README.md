@@ -37,8 +37,13 @@ There is no clean portable API that lets a normal third-party app inspect all of
 4. Run the app with your environment baked in:
 
    ```bash
-   flutter run -d macos --dart-define=ORGANIZATION_NAME="Helixiora" --dart-define=SUBMISSION_ENDPOINT="https://script.google.com/macros/s/your-id/exec"
+   flutter run -d macos \
+     --dart-define=ORGANIZATION_NAME="Helixiora" \
+     --dart-define=APP_VERSION="$(./scripts/git-version.sh)" \
+     --dart-define=SUBMISSION_ENDPOINT="https://script.google.com/macros/s/your-id/exec"
    ```
+
+The app window title and the footer version badge use `APP_VERSION`. For tagged builds, the recommended value is `git describe --tags --always --dirty`, which [`scripts/git-version.sh`](scripts/git-version.sh) already wraps.
 
 ## Google Sheets backend
 
@@ -86,6 +91,8 @@ From PowerShell on a Windows machine:
 ./scripts/build-windows.ps1 -OrganizationName "Helixiora" -SubmissionEndpoint "https://script.google.com/macros/s/your-id/exec" -ZipArtifact
 ```
 
+If `-AppVersion` is omitted, the script derives it from `git describe --tags --always --dirty`.
+
 Output:
 
 - Release folder: `build/windows/x64/runner/Release`
@@ -116,6 +123,8 @@ It runs:
 - `flutter build windows --release`
 - `flutter build macos --release`
 - `flutter build ios --release --no-codesign`
+
+Each artifact build injects `APP_VERSION` from the checked-out git tags, so the generated app exposes the build version in the window title and the footer.
 
 Artifacts uploaded by the workflow:
 
