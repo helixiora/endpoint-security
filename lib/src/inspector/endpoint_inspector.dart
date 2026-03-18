@@ -76,17 +76,29 @@ class EndpointInspector {
     if (Platform.isAndroid) {
       final info = await _deviceInfo.androidInfo;
       final androidId = await _readAndroidId();
+      final serialNumber = _preferredIdentifier(
+        info.data['serialNumber']?.toString(),
+      );
       final identifier = _preferredIdentifier(
         androidId,
-        fallback: _preferredIdentifier(info.serialNumber),
+        fallback: _preferredIdentifier(
+          serialNumber,
+          fallback: _preferredIdentifier(
+            info.id,
+            fallback: _preferredIdentifier(info.fingerprint),
+          ),
+        ),
       );
       return DeviceContext(
         platform: 'Android',
         osVersion: 'Android ${info.version.release}',
         deviceModel: '${info.brand} ${info.model}',
         endpointName: info.model,
-        deviceIdentifierLabel:
-            androidId != null ? 'Android ID' : 'Serial number',
+        deviceIdentifierLabel: androidId != null
+            ? 'Android ID'
+            : serialNumber != null
+                ? 'Serial number'
+                : 'Build ID',
         deviceIdentifier: identifier ?? 'Unavailable',
       );
     }
