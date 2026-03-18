@@ -16,7 +16,7 @@ help:
 		'apps-script-check Validate backend/google-apps-script/Code.gs' \
 		'check             Run all local quality checks' \
 		'pre-commit        Alias for check' \
-		'hooks-install     Configure Git to use .githooks/'
+		'hooks-install     Install repository hooks (prefers pre-commit when available)'
 
 bootstrap:
 	$(FLUTTER) pub get
@@ -41,4 +41,8 @@ check: format-check apps-script-check analyze test
 pre-commit: check
 
 hooks-install:
-	git config core.hooksPath .githooks
+	@if command -v pre-commit >/dev/null 2>&1 && [ -f .pre-commit-config.yaml ]; then \
+		pre-commit install; \
+	else \
+		git config core.hooksPath .githooks; \
+	fi

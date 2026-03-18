@@ -72,6 +72,7 @@ See [`backend/google-apps-script/README.md`](backend/google-apps-script/README.m
 
 `make check` runs Dart format verification, the Apps Script verifier, `flutter analyze`, and `flutter test`.
 It expects `flutter`, `dart`, and `node` to be available on your path.
+If you use the Python `pre-commit` tool directly, `pre-commit install` and `pre-commit run` now work as well.
 
 ## Windows builds
 
@@ -136,7 +137,8 @@ Open `Actions` -> `Build All Platforms` -> `Run workflow` to generate all artifa
 
 - [`.github/workflows/quality.yml`](.github/workflows/quality.yml): runs formatting, Apps Script validation, `flutter analyze`, and `flutter test` on pushes and pull requests.
 - [`.github/dependabot.yml`](.github/dependabot.yml): keeps Flutter `pub` dependencies and GitHub Actions dependencies moving automatically.
-- [`.githooks/pre-commit`](.githooks/pre-commit): versioned local hook that runs the same quality gate before commit.
+- [`.pre-commit-config.yaml`](.pre-commit-config.yaml): Python `pre-commit` configuration that runs the repository quality gate.
+- [`.githooks/pre-commit`](.githooks/pre-commit): versioned fallback hook that defers to `pre-commit` when available.
 
 ## Employee flow
 

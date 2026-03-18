@@ -5,6 +5,10 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
+if command -v pre-commit >/dev/null 2>&1 && [ -f .pre-commit-config.yaml ]; then
+  exec pre-commit run --hook-stage pre-commit
+fi
+
 if command -v make >/dev/null 2>&1; then
   exec make pre-commit
 fi
