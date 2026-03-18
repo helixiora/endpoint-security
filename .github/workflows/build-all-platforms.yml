@@ -115,7 +115,6 @@ jobs:
 
       - name: Install dependencies
         run: flutter pub get
-        shell: ${{ matrix.shell }}
 
       - name: Build artifact (Unix)
         if: matrix.shell == 'bash'

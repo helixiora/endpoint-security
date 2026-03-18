@@ -33,12 +33,45 @@ There is no clean portable API that lets a normal third-party app inspect all of
    flutter pub get
    ```
 
-3. Set up the central submission endpoint. A Google Apps Script example is included in [`backend/google-apps-script/Code.gs`](backend/google-apps-script/Code.gs).
+3. Set up the central submission endpoint. A Google Apps Script example is included in [`backend/google-apps-script/Code.gs`](backend/google-apps-script/Code.gs) and documented in [`backend/google-apps-script/README.md`](backend/google-apps-script/README.md).
 4. Run the app with your environment baked in:
 
    ```bash
    flutter run -d macos --dart-define=ORGANIZATION_NAME="Helixiora" --dart-define=SUBMISSION_ENDPOINT="https://script.google.com/macros/s/your-id/exec"
    ```
+
+## Google Sheets backend
+
+The included Apps Script flattens each submission into one spreadsheet column per JSON leaf using JSON pointer-style headers such as `/owner/name` and `/checks/0/detectedStatus`.
+
+- New payload keys automatically create new columns in the header row.
+- Array entries use numeric path segments.
+- Keys containing `/` or `~` are escaped so column names stay stable.
+
+See [`backend/google-apps-script/README.md`](backend/google-apps-script/README.md) for setup details.
+
+## Developer workflow
+
+1. Install dependencies:
+
+   ```bash
+   make bootstrap
+   ```
+
+2. Run the local quality gate:
+
+   ```bash
+   make check
+   ```
+
+3. Install the versioned Git pre-commit hook:
+
+   ```bash
+   make hooks-install
+   ```
+
+`make check` runs Dart format verification, the Apps Script verifier, `flutter analyze`, and `flutter test`.
+It expects `flutter`, `dart`, and `node` to be available on your path.
 
 ## Windows builds
 
@@ -99,6 +132,12 @@ Recommended repository settings:
 
 Open `Actions` -> `Build All Platforms` -> `Run workflow` to generate all artifacts in one run.
 
+## Maintenance automation
+
+- [`.github/workflows/quality.yml`](.github/workflows/quality.yml): runs formatting, Apps Script validation, `flutter analyze`, and `flutter test` on pushes and pull requests.
+- [`.github/dependabot.yml`](.github/dependabot.yml): keeps Flutter `pub` dependencies and GitHub Actions dependencies moving automatically.
+- [`.githooks/pre-commit`](.githooks/pre-commit): versioned local hook that runs the same quality gate before commit.
+
 ## Employee flow
 
 1. Launch the app.
@@ -114,6 +153,7 @@ Open `Actions` -> `Build All Platforms` -> `Run workflow` to generate all artifa
 - [`lib/src/inspector/endpoint_inspector.dart`](lib/src/inspector/endpoint_inspector.dart): platform-aware inspection orchestration
 - [`lib/src/inspector/desktop_probes.dart`](lib/src/inspector/desktop_probes.dart): desktop command execution
 - [`backend/google-apps-script/Code.gs`](backend/google-apps-script/Code.gs): spreadsheet-backed webhook example
+- [`scripts/check-apps-script.mjs`](scripts/check-apps-script.mjs): local verification for the Apps Script flattener
 
 ## Limitations
 

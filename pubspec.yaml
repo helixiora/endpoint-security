@@ -28,20 +28,19 @@ flutter:
 flutter_launcher_icons:
   android: 'launcher_icon'
   ios: true
-  image_path: 'assets/branding/helixiora_mark.png'
+  image_path: 'assets/branding/helixiora_icon_dark_blue.png'
   min_sdk_android: 21
   remove_alpha_ios: true
   background_color_ios: '#FFFFFF'
   web:
     generate: true
-    image_path: 'assets/branding/helixiora_mark.png'
+    image_path: 'assets/branding/helixiora_icon_dark_blue.png'
     background_color: '#FFFFFF'
     theme_color: '#081847'
   windows:
     generate: true
-    image_path: 'assets/branding/helixiora_mark.png'
+    image_path: 'assets/branding/helixiora_icon_dark_blue.png'
     icon_size: 64
   macos:
     generate: true
-    image_path: 'assets/branding/helixiora_mark.png'
-
+    image_path: 'assets/branding/helixiora_icon_dark_blue.png'

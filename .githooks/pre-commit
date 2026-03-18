@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+if command -v make >/dev/null 2>&1; then
+  exec make pre-commit
+fi
+
+if ! command -v dart >/dev/null 2>&1; then
+  printf 'dart is required for the pre-commit hook.\n' >&2
+  exit 1
+fi
+
+if ! command -v flutter >/dev/null 2>&1; then
+  printf 'flutter is required for the pre-commit hook.\n' >&2
+  exit 1
+fi
+
+if ! command -v node >/dev/null 2>&1; then
+  printf 'node is required for the pre-commit hook.\n' >&2
+  exit 1
+fi
+
+dart format --output=none --set-exit-if-changed lib test
+node scripts/check-apps-script.mjs
+flutter analyze
+flutter test

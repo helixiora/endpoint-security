@@ -63,6 +63,8 @@ EndpointSubmission _sampleSubmission() {
         osVersion: '14.7',
         deviceModel: 'MacBook Pro',
         endpointName: 'jane-macbook',
+        deviceIdentifierLabel: 'Serial number',
+        deviceIdentifier: 'C02ABCDE1234',
       ),
       checks: const [
         SecurityCheckResult(

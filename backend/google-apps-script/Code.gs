@@ -1,24 +1,25 @@
 function doPost(e) {
   try {
+    if (!e || !e.postData || !e.postData.contents) {
+      throw new Error('Missing request body.');
+    }
+
     const payload = JSON.parse(e.postData.contents);
     const sheet = getTargetSheet_();
     const row = flattenPayload_(payload);
+    const headers = upsertHeaders_(sheet, Object.keys(row).sort());
 
-    ensureHeaderRow_(sheet, Object.keys(row));
-    appendRow_(sheet, row);
+    appendRow_(sheet, headers, row);
 
     return jsonResponse_({
       ok: true,
       receivedAtUtc: new Date().toISOString(),
     });
   } catch (error) {
-    return jsonResponse_(
-      {
-        ok: false,
-        error: String(error),
-      },
-      500
-    );
+    return jsonResponse_({
+      ok: false,
+      error: String(error),
+    });
   }
 }
 
@@ -35,61 +36,117 @@ function getTargetSheet_() {
 }
 
 function flattenPayload_(payload) {
-  const checksById = {};
-  (payload.checks || []).forEach((check) => {
-    checksById[check.id] = check;
-  });
-
-  return {
-    submittedAtUtc: payload.submittedAtUtc || '',
-    organization: payload.organization || '',
-    ownerName: payload.owner?.name || '',
-    ownerEmail: payload.owner?.email || '',
-    endpointName: payload.endpoint?.submittedName || '',
-    detectedEndpointName: payload.endpoint?.detectedName || '',
-    platform: payload.endpoint?.platform || '',
-    osVersion: payload.endpoint?.osVersion || '',
-    deviceModel: payload.endpoint?.deviceModel || '',
-    notes: payload.notes || '',
-    diskEncryptionDetected: checksById.disk_encryption?.detectedStatus || '',
-    diskEncryptionReviewed: checksById.disk_encryption?.reviewedStatus || '',
-    diskEncryptionAutomatic:
-      checksById.disk_encryption?.detectedAutomatically || false,
-    screenLockDetected: checksById.screen_lock?.detectedStatus || '',
-    screenLockReviewed: checksById.screen_lock?.reviewedStatus || '',
-    screenLockAutomatic:
-      checksById.screen_lock?.detectedAutomatically || false,
-    firewallDetected: checksById.firewall?.detectedStatus || '',
-    firewallReviewed: checksById.firewall?.reviewedStatus || '',
-    firewallAutomatic: checksById.firewall?.detectedAutomatically || false,
-    onePasswordDetected: checksById.one_password?.detectedStatus || '',
-    onePasswordReviewed: checksById.one_password?.reviewedStatus || '',
-    onePasswordAutomatic:
-      checksById.one_password?.detectedAutomatically || false,
-    rawJson: JSON.stringify(payload),
-  };
+  const flattened = {};
+  flattenValue_('', payload, flattened);
+  return flattened;
 }
 
-function ensureHeaderRow_(sheet, headers) {
-  if (sheet.getLastRow() > 0) {
+function flattenValue_(path, value, flattened) {
+  const columnName = path || '$';
+
+  if (value === null) {
+    flattened[columnName] = 'null';
     return;
   }
 
-  sheet.appendRow(headers);
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  ) {
+    flattened[columnName] = value;
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      flattened[columnName] = '[]';
+      return;
+    }
+
+    value.forEach((item, index) => {
+      flattenValue_(joinPath_(path, String(index)), item, flattened);
+    });
+    return;
+  }
+
+  if (typeof value === 'object') {
+    const keys = Object.keys(value);
+
+    if (keys.length === 0) {
+      flattened[columnName] = '{}';
+      return;
+    }
+
+    keys.sort().forEach((key) => {
+      flattenValue_(
+        joinPath_(path, escapePathSegment_(key)),
+        value[key],
+        flattened
+      );
+    });
+    return;
+  }
+
+  flattened[columnName] = String(value);
 }
 
-function appendRow_(sheet, row) {
-  const headers = sheet
+function joinPath_(path, segment) {
+  return path ? `${path}/${segment}` : `/${segment}`;
+}
+
+function escapePathSegment_(segment) {
+  return String(segment).replace(/~/g, '~0').replace(/\//g, '~1');
+}
+
+function upsertHeaders_(sheet, incomingHeaders) {
+  const existingHeaders = getHeaders_(sheet);
+
+  if (existingHeaders.length === 0) {
+    sheet.getRange(1, 1, 1, incomingHeaders.length).setValues([incomingHeaders]);
+    return incomingHeaders;
+  }
+
+  const existingHeaderSet = {};
+  existingHeaders.forEach((header) => {
+    existingHeaderSet[header] = true;
+  });
+
+  const missingHeaders = incomingHeaders.filter(
+    (header) => !existingHeaderSet[header]
+  );
+
+  if (missingHeaders.length === 0) {
+    return existingHeaders;
+  }
+
+  sheet
+    .getRange(1, existingHeaders.length + 1, 1, missingHeaders.length)
+    .setValues([missingHeaders]);
+
+  return existingHeaders.concat(missingHeaders);
+}
+
+function getHeaders_(sheet) {
+  if (sheet.getLastRow() === 0 || sheet.getLastColumn() === 0) {
+    return [];
+  }
+
+  return sheet
     .getRange(1, 1, 1, sheet.getLastColumn())
     .getValues()[0]
-    .map(String);
-  const values = headers.map((header) => row[header] ?? '');
+    .map((header) => String(header));
+}
+
+function appendRow_(sheet, headers, row) {
+  const values = headers.map((header) =>
+    Object.prototype.hasOwnProperty.call(row, header) ? row[header] : ''
+  );
   sheet.appendRow(values);
 }
 
-function jsonResponse_(payload, statusCode) {
+function jsonResponse_(payload) {
   const output = ContentService.createTextOutput(JSON.stringify(payload));
   output.setMimeType(ContentService.MimeType.JSON);
   return output;
 }
-

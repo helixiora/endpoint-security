@@ -15,6 +15,9 @@ This Apps Script receives the app's JSON payload and appends one row per submiss
 ## Notes
 
 - The script creates an `Endpoint Check-Ins` tab automatically.
-- It stores a flattened set of columns for quick spreadsheet filtering, plus the full raw JSON in `rawJson`.
+- It flattens the request body into one column per JSON leaf.
+- Column names use JSON pointer-style paths such as `/owner/name` and `/checks/0/reviewedStatus`.
+- New keys automatically extend the header row, so schema changes do not require script edits.
+- Keys containing `/` or `~` are escaped using JSON pointer rules.
+- Empty arrays and empty objects are stored as `[]` and `{}` in their own columns so the sheet still captures those values.
 - Use HTTPS only and keep the URL internal if this data is sensitive.
-
