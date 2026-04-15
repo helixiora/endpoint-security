@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  device_info_plus: ^12.3.0
+  device_info_plus: ^13.0.0
   http: ^1.2.2
   shared_preferences: ^2.3.2
 
