@@ -519,6 +519,52 @@ class DesktopProbeParsers {
     );
   }
 
+  static SecurityCheckResult parseSuspiciousArtifacts({
+    required List<String> findings,
+    required bool scanCompleted,
+    String? failureDetails,
+  }) {
+    if (!scanCompleted) {
+      return SecurityCheckResult(
+        id: 'suspicious_artifacts',
+        label: 'Suspicious apps and files',
+        detectedStatus: CheckStatus.manualReview,
+        detectedAutomatically: false,
+        summary:
+            'The app could not complete the suspicious app and file scan automatically.',
+        details: failureDetails,
+      );
+    }
+
+    if (findings.isEmpty) {
+      return const SecurityCheckResult(
+        id: 'suspicious_artifacts',
+        label: 'Suspicious apps and files',
+        detectedStatus: CheckStatus.enabled,
+        detectedAutomatically: true,
+        summary:
+            'No suspicious apps or files were found in the checked locations.',
+        details:
+            'This is a limited indicator scan, not a full antivirus or EDR scan.',
+      );
+    }
+
+    return SecurityCheckResult(
+      id: 'suspicious_artifacts',
+      label: 'Suspicious apps and files',
+      detectedStatus: CheckStatus.disabled,
+      detectedAutomatically: true,
+      summary:
+          'Potentially suspicious apps or files were found and should be reviewed.',
+      details: [
+        'Findings:',
+        ...findings.map((finding) => '- $finding'),
+        '',
+        'This is a limited indicator scan, not a full antivirus or EDR scan.',
+      ].join('\n'),
+    );
+  }
+
   static int? _firstInt(String value) {
     final match = RegExp(r'(-?\d+)').firstMatch(value);
     return match == null ? null : int.tryParse(match.group(1)!);

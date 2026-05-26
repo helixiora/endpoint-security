@@ -174,6 +174,15 @@ class EndpointInspector {
         details:
             'Installed app visibility is restricted on mobile platforms, especially on iOS.',
       ),
+      SecurityCheckResult(
+        id: 'suspicious_artifacts',
+        label: 'Suspicious apps and files',
+        detectedStatus: CheckStatus.manualReview,
+        detectedAutomatically: false,
+        summary: 'Review required on $platform.',
+        details:
+            'Mobile operating systems do not expose a portable API for regular apps to inspect installed apps and files broadly.',
+      ),
     ];
   }
 

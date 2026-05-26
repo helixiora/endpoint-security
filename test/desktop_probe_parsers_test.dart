@@ -50,5 +50,25 @@ void main() {
 
       expect(result.detectedStatus, CheckStatus.enabled);
     });
+
+    test('marks suspicious artifact scan as secure when no findings exist', () {
+      final result = DesktopProbeParsers.parseSuspiciousArtifacts(
+        findings: const [],
+        scanCompleted: true,
+      );
+
+      expect(result.detectedStatus, CheckStatus.enabled);
+      expect(result.detectedAutomatically, isTrue);
+    });
+
+    test('marks suspicious artifact scan as insecure when findings exist', () {
+      final result = DesktopProbeParsers.parseSuspiciousArtifacts(
+        findings: const ['/Applications/AnyDesk.app'],
+        scanCompleted: true,
+      );
+
+      expect(result.detectedStatus, CheckStatus.disabled);
+      expect(result.details, contains('/Applications/AnyDesk.app'));
+    });
   });
 }

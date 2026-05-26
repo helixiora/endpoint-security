@@ -48,6 +48,27 @@ class DesktopProbes {
       if (Platform.environment.containsKey('HOME'))
         '${Platform.environment['HOME']}/Applications/1Password 7.app',
     ]);
+    final suspiciousArtifacts = await _existingPaths([
+      '/Applications/Advanced Mac Cleaner.app',
+      '/Applications/AnyDesk.app',
+      '/Applications/RustDesk.app',
+      '/Applications/TeamViewer.app',
+      '/Applications/UltraViewer.app',
+      if (Platform.environment.containsKey('HOME'))
+        '${Platform.environment['HOME']}/Applications/AnyDesk.app',
+      if (Platform.environment.containsKey('HOME'))
+        '${Platform.environment['HOME']}/Applications/RustDesk.app',
+      if (Platform.environment.containsKey('HOME'))
+        '${Platform.environment['HOME']}/Applications/TeamViewer.app',
+      '/Library/LaunchAgents/com.anydesk.AnyDesk.plist',
+      '/Library/LaunchDaemons/com.anydesk.AnyDesk.plist',
+      '/Library/LaunchDaemons/com.teamviewer.Helper.plist',
+      '/Library/PrivilegedHelperTools/com.teamviewer.Helper',
+      '/usr/local/bin/ngrok',
+      '/opt/homebrew/bin/ngrok',
+      '/usr/local/bin/cloudflared',
+      '/opt/homebrew/bin/cloudflared',
+    ]);
 
     return [
       DesktopProbeParsers.parseMacEncryption(
@@ -78,6 +99,10 @@ class DesktopProbes {
         label: '1Password installed',
         installed: onePasswordLocation != null,
         location: onePasswordLocation,
+      ),
+      DesktopProbeParsers.parseSuspiciousArtifacts(
+        findings: suspiciousArtifacts,
+        scanCompleted: true,
       ),
     ];
   }
@@ -141,6 +166,34 @@ $installed = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
 ''',
       ],
     );
+    final suspiciousArtifacts = await _runCommand(
+      'powershell',
+      [
+        '-NoProfile',
+        '-Command',
+        r'''
+$paths = @(
+  "$Env:LOCALAPPDATA\Programs\AnyDesk\AnyDesk.exe",
+  "$Env:ProgramFiles\AnyDesk\AnyDesk.exe",
+  "${Env:ProgramFiles(x86)}\AnyDesk\AnyDesk.exe",
+  "$Env:ProgramFiles\TeamViewer\TeamViewer.exe",
+  "${Env:ProgramFiles(x86)}\TeamViewer\TeamViewer.exe",
+  "$Env:LOCALAPPDATA\Programs\RustDesk\rustdesk.exe",
+  "$Env:ProgramFiles\RustDesk\rustdesk.exe",
+  "$Env:ProgramFiles\UltraViewer\UltraViewer_Desktop.exe",
+  "${Env:ProgramFiles(x86)}\UltraViewer\UltraViewer_Desktop.exe",
+  "$Env:ProgramFiles\Google\Chrome Remote Desktop\CurrentVersion\remoting_host.exe",
+  "${Env:ProgramFiles(x86)}\Google\Chrome Remote Desktop\CurrentVersion\remoting_host.exe",
+  "$Env:LOCALAPPDATA\ngrok\ngrok.exe",
+  "$Env:USERPROFILE\Downloads\ngrok.exe",
+  "$Env:USERPROFILE\Downloads\cloudflared.exe"
+)
+$paths |
+  Where-Object { $_ -and (Test-Path $_) } |
+  ConvertTo-Json -Compress
+''',
+      ],
+    );
 
     String? onePasswordPath;
     final onePasswordPayload = onePassword.stdout.trim();
@@ -150,6 +203,7 @@ $installed = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
           RegExp(r'"Path":"([^"]+)"').firstMatch(onePasswordPayload);
       onePasswordPath = pathMatch?.group(1);
     }
+    final suspiciousFindings = _parseJsonStringList(suspiciousArtifacts.stdout);
 
     return [
       DesktopProbeParsers.parseWindowsBitLocker(
@@ -173,6 +227,11 @@ $installed = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
         installed: onePasswordPath != null,
         location: onePasswordPath,
       ),
+      DesktopProbeParsers.parseSuspiciousArtifacts(
+        findings: suspiciousFindings,
+        scanCompleted: suspiciousArtifacts.exitCode == 0,
+        failureDetails: suspiciousArtifacts.stderr,
+      ),
     ];
   }
 
@@ -193,6 +252,21 @@ $installed = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
       '/usr/bin/1password',
       '/usr/share/1password/1password',
       '/snap/bin/1password',
+    ]);
+    final suspiciousArtifacts = await _existingPaths([
+      '/usr/bin/anydesk',
+      '/opt/anydesk/anydesk',
+      '/usr/bin/rustdesk',
+      '/opt/rustdesk/rustdesk',
+      '/usr/bin/teamviewer',
+      '/opt/teamviewer/tv_bin/teamviewer',
+      '/usr/local/bin/ngrok',
+      '/snap/bin/ngrok',
+      '/usr/local/bin/cloudflared',
+      '/usr/bin/cloudflared',
+      '/etc/systemd/system/anydesk.service',
+      '/etc/systemd/system/teamviewerd.service',
+      '/etc/systemd/system/rustdesk.service',
     ]);
 
     return [
@@ -218,6 +292,10 @@ $installed = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
         label: '1Password installed',
         installed: onePasswordLocation != null,
         location: onePasswordLocation,
+      ),
+      DesktopProbeParsers.parseSuspiciousArtifacts(
+        findings: suspiciousArtifacts,
+        scanCompleted: true,
       ),
     ];
   }
@@ -251,6 +329,14 @@ $installed = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
       SecurityCheckResult(
         id: 'one_password',
         label: '1Password installed',
+        detectedStatus: CheckStatus.manualReview,
+        detectedAutomatically: false,
+        summary:
+            'This desktop platform is not supported by the automatic probes.',
+      ),
+      SecurityCheckResult(
+        id: 'suspicious_artifacts',
+        label: 'Suspicious apps and files',
         detectedStatus: CheckStatus.manualReview,
         detectedAutomatically: false,
         summary:
@@ -293,6 +379,30 @@ $installed = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
       }
     }
     return null;
+  }
+
+  static Future<List<String>> _existingPaths(List<String> paths) async {
+    final findings = <String>[];
+    for (final path in paths) {
+      if (await FileSystemEntity.type(path) != FileSystemEntityType.notFound) {
+        findings.add(path);
+      }
+    }
+    return findings;
+  }
+
+  static List<String> _parseJsonStringList(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return const [];
+    }
+
+    final quotedMatches = RegExp(r'"([^"]+)"').allMatches(trimmed).toList();
+    if (quotedMatches.isNotEmpty) {
+      return quotedMatches.map((match) => match.group(1)!).toList();
+    }
+
+    return [trimmed];
   }
 }
 
