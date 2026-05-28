@@ -565,6 +565,50 @@ class DesktopProbeParsers {
     );
   }
 
+  static SecurityCheckResult parseEndpointProtection({
+    required List<String> findings,
+    required bool scanCompleted,
+    String? failureDetails,
+  }) {
+    if (!scanCompleted) {
+      return SecurityCheckResult(
+        id: 'endpoint_protection',
+        label: 'Endpoint malware protection / EDR',
+        detectedStatus: CheckStatus.manualReview,
+        detectedAutomatically: false,
+        summary:
+            'The app could not complete the endpoint protection check automatically.',
+        details: failureDetails,
+      );
+    }
+
+    if (findings.isEmpty) {
+      return const SecurityCheckResult(
+        id: 'endpoint_protection',
+        label: 'Endpoint malware protection / EDR',
+        detectedStatus: CheckStatus.manualReview,
+        detectedAutomatically: true,
+        summary:
+            'No known antivirus, anti-malware, or EDR agent was found in the checked locations.',
+        details:
+            'Confirm whether this endpoint is protected by MDM, EDR, antivirus, or another centrally managed security agent.',
+      );
+    }
+
+    return SecurityCheckResult(
+      id: 'endpoint_protection',
+      label: 'Endpoint malware protection / EDR',
+      detectedStatus: CheckStatus.enabled,
+      detectedAutomatically: true,
+      summary:
+          'Endpoint malware protection or EDR appears to be installed on this device.',
+      details: [
+        'Detected indicators:',
+        ...findings.map((finding) => '- $finding'),
+      ].join('\n'),
+    );
+  }
+
   static int? _firstInt(String value) {
     final match = RegExp(r'(-?\d+)').firstMatch(value);
     return match == null ? null : int.tryParse(match.group(1)!);

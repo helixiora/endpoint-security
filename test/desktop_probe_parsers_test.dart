@@ -70,5 +70,25 @@ void main() {
       expect(result.detectedStatus, CheckStatus.disabled);
       expect(result.details, contains('/Applications/AnyDesk.app'));
     });
+
+    test('marks endpoint protection as enabled when an agent is detected', () {
+      final result = DesktopProbeParsers.parseEndpointProtection(
+        findings: const ['Service edrsvc: Running'],
+        scanCompleted: true,
+      );
+
+      expect(result.detectedStatus, CheckStatus.enabled);
+      expect(result.details, contains('Service edrsvc: Running'));
+    });
+
+    test('marks missing endpoint protection for manual review', () {
+      final result = DesktopProbeParsers.parseEndpointProtection(
+        findings: const [],
+        scanCompleted: true,
+      );
+
+      expect(result.detectedStatus, CheckStatus.manualReview);
+      expect(result.detectedAutomatically, isTrue);
+    });
   });
 }

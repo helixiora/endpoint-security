@@ -183,6 +183,15 @@ class EndpointInspector {
         details:
             'Mobile operating systems do not expose a portable API for regular apps to inspect installed apps and files broadly.',
       ),
+      SecurityCheckResult(
+        id: 'endpoint_protection',
+        label: 'Endpoint malware protection / EDR',
+        detectedStatus: CheckStatus.manualReview,
+        detectedAutomatically: false,
+        summary: 'Review required on $platform.',
+        details:
+            'Confirm whether this mobile device is managed by MDM or protected by an approved mobile threat defense solution.',
+      ),
     ];
   }
 

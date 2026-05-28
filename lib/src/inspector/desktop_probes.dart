@@ -69,6 +69,27 @@ class DesktopProbes {
       '/usr/local/bin/cloudflared',
       '/opt/homebrew/bin/cloudflared',
     ]);
+    final endpointProtection = await _existingPaths([
+      '/Applications/Microsoft Defender.app',
+      '/Applications/CrowdStrike Falcon.app',
+      '/Applications/SentinelOne.app',
+      '/Applications/Jamf Protect.app',
+      '/Applications/Malwarebytes.app',
+      '/Applications/Sophos Endpoint.app',
+      '/Applications/VMware Carbon Black Cloud.app',
+      '/Applications/OpenEDR.app',
+      '/Library/LaunchDaemons/com.microsoft.fresno.plist',
+      '/Library/LaunchDaemons/com.crowdstrike.falcond.plist',
+      '/Library/LaunchDaemons/com.sentinelone.sentineld.plist',
+      '/Library/LaunchDaemons/com.jamf.protect.daemon.plist',
+      '/Library/LaunchDaemons/com.malwarebytes.mbam.rtprotection.daemon.plist',
+      '/Library/LaunchDaemons/com.sophos.common.servicemanager.plist',
+      '/Library/LaunchDaemons/com.vmware.carbonblack.cloud.plist',
+      '/Library/CS/falcond',
+      '/Library/Sentinel/sentinel-agent.bundle',
+      '/usr/local/bin/mdatp',
+      '/usr/local/bin/osqueryi',
+    ]);
 
     return [
       DesktopProbeParsers.parseMacEncryption(
@@ -102,6 +123,10 @@ class DesktopProbes {
       ),
       DesktopProbeParsers.parseSuspiciousArtifacts(
         findings: suspiciousArtifacts,
+        scanCompleted: true,
+      ),
+      DesktopProbeParsers.parseEndpointProtection(
+        findings: endpointProtection,
         scanCompleted: true,
       ),
     ];
@@ -194,6 +219,59 @@ $paths |
 ''',
       ],
     );
+    final endpointProtection = await _runCommand(
+      'powershell',
+      [
+        '-NoProfile',
+        '-Command',
+        r'''
+$indicators = @()
+$serviceNames = @(
+  'edrsvc',
+  'WinDefend',
+  'Sense',
+  'CSFalconService',
+  'SentinelAgent',
+  'MBAMService',
+  'Sophos Endpoint Defense Service',
+  'CbDefense',
+  'osqueryd'
+)
+foreach ($serviceName in $serviceNames) {
+  $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+  if ($service) {
+    $indicators += "Service $($service.Name): $($service.Status)"
+  }
+}
+$paths = @(
+  "$Env:ProgramFiles\OpenEdr\EdrAgentV2",
+  "$Env:ProgramData\edrsvc",
+  "$Env:ProgramFiles\Microsoft Defender",
+  "$Env:ProgramFiles\Windows Defender",
+  "$Env:ProgramFiles\CrowdStrike",
+  "$Env:ProgramFiles\SentinelOne",
+  "$Env:ProgramFiles\Malwarebytes",
+  "$Env:ProgramFiles\Sophos",
+  "$Env:ProgramFiles\CarbonBlack",
+  "$Env:ProgramFiles\osquery"
+)
+foreach ($path in $paths) {
+  if ($path -and (Test-Path $path)) {
+    $indicators += "Path $path"
+  }
+}
+try {
+  $products = Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct -ErrorAction Stop
+  foreach ($product in $products) {
+    if ($product.displayName) {
+      $indicators += "Security Center product $($product.displayName)"
+    }
+  }
+} catch {}
+$indicators | Select-Object -Unique | ConvertTo-Json -Compress
+''',
+      ],
+    );
 
     String? onePasswordPath;
     final onePasswordPayload = onePassword.stdout.trim();
@@ -204,6 +282,8 @@ $paths |
       onePasswordPath = pathMatch?.group(1);
     }
     final suspiciousFindings = _parseJsonStringList(suspiciousArtifacts.stdout);
+    final endpointProtectionFindings =
+        _parseJsonStringList(endpointProtection.stdout);
 
     return [
       DesktopProbeParsers.parseWindowsBitLocker(
@@ -231,6 +311,11 @@ $paths |
         findings: suspiciousFindings,
         scanCompleted: suspiciousArtifacts.exitCode == 0,
         failureDetails: suspiciousArtifacts.stderr,
+      ),
+      DesktopProbeParsers.parseEndpointProtection(
+        findings: endpointProtectionFindings,
+        scanCompleted: endpointProtection.exitCode == 0,
+        failureDetails: endpointProtection.stderr,
       ),
     ];
   }
@@ -268,6 +353,21 @@ $paths |
       '/etc/systemd/system/teamviewerd.service',
       '/etc/systemd/system/rustdesk.service',
     ]);
+    final endpointProtection = await _existingPaths([
+      '/usr/bin/mdatp',
+      '/opt/microsoft/mdatp/sbin/wdavdaemon',
+      '/opt/CrowdStrike/falcond',
+      '/opt/sentinelone/bin/sentinelctl',
+      '/opt/sophos-spl/bin/sophos_managementagent',
+      '/opt/Malwarebytes/bin/mbdaemon',
+      '/usr/bin/osqueryi',
+      '/usr/bin/osqueryd',
+      '/etc/systemd/system/mdatp.service',
+      '/etc/systemd/system/falcon-sensor.service',
+      '/etc/systemd/system/sentinelone.service',
+      '/etc/systemd/system/osqueryd.service',
+      '/var/ossec/bin/wazuh-control',
+    ]);
 
     return [
       DesktopProbeParsers.parseLinuxEncryption(
@@ -295,6 +395,10 @@ $paths |
       ),
       DesktopProbeParsers.parseSuspiciousArtifacts(
         findings: suspiciousArtifacts,
+        scanCompleted: true,
+      ),
+      DesktopProbeParsers.parseEndpointProtection(
+        findings: endpointProtection,
         scanCompleted: true,
       ),
     ];
@@ -337,6 +441,14 @@ $paths |
       SecurityCheckResult(
         id: 'suspicious_artifacts',
         label: 'Suspicious apps and files',
+        detectedStatus: CheckStatus.manualReview,
+        detectedAutomatically: false,
+        summary:
+            'This desktop platform is not supported by the automatic probes.',
+      ),
+      SecurityCheckResult(
+        id: 'endpoint_protection',
+        label: 'Endpoint malware protection / EDR',
         detectedStatus: CheckStatus.manualReview,
         detectedAutomatically: false,
         summary:

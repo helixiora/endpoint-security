@@ -1127,22 +1127,22 @@ class _DesktopChecksGrid extends StatelessWidget {
     }
 
     return LayoutBuilder(
-      builder: (context, constraints) {
+      builder: (_, __) {
         const spacing = 12.0;
         const columns = 2;
-        final rows = (checks.length / columns).ceil();
-        final tileWidth = (constraints.maxWidth - spacing) / columns;
-        final tileHeight =
-            (constraints.maxHeight - ((rows - 1) * spacing)) / rows;
+        final hasManualReview = checks.any(
+          (check) => check.requiresUserConfirmation,
+        );
+        final tileHeight = hasManualReview ? 286.0 : 232.0;
 
         return GridView.builder(
-          physics: const NeverScrollableScrollPhysics(),
+          physics: const ClampingScrollPhysics(),
           itemCount: checks.length,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
             crossAxisSpacing: spacing,
             mainAxisSpacing: spacing,
-            childAspectRatio: tileWidth / tileHeight,
+            mainAxisExtent: tileHeight,
           ),
           itemBuilder: (context, index) {
             final check = checks[index];
