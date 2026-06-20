@@ -17,6 +17,5 @@
 /*.log
 /*.orig
 /tmp/
-/pubspec.lock
 !/lib/
 !/lib/**

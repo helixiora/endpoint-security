@@ -6,9 +6,26 @@ plugins {
 }
 
 android {
-    namespace = "com.example.endpoint_security_checkin"
+    namespace = "com.helixiora.endpointsecurity"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
+    val releaseKeystorePath = providers.gradleProperty("HELIXIORA_ANDROID_KEYSTORE")
+        .orElse(providers.environmentVariable("HELIXIORA_ANDROID_KEYSTORE"))
+        .orNull
+    val releaseKeystorePassword = providers.gradleProperty("HELIXIORA_ANDROID_KEYSTORE_PASSWORD")
+        .orElse(providers.environmentVariable("HELIXIORA_ANDROID_KEYSTORE_PASSWORD"))
+        .orNull
+    val releaseKeyAlias = providers.gradleProperty("HELIXIORA_ANDROID_KEY_ALIAS")
+        .orElse(providers.environmentVariable("HELIXIORA_ANDROID_KEY_ALIAS"))
+        .orNull
+    val releaseKeyPassword = providers.gradleProperty("HELIXIORA_ANDROID_KEY_PASSWORD")
+        .orElse(providers.environmentVariable("HELIXIORA_ANDROID_KEY_PASSWORD"))
+        .orNull
+    val hasReleaseSigning =
+        !releaseKeystorePath.isNullOrBlank() &&
+            !releaseKeystorePassword.isNullOrBlank() &&
+            !releaseKeyAlias.isNullOrBlank() &&
+            !releaseKeyPassword.isNullOrBlank()
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -20,21 +37,29 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.endpoint_security_checkin"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        applicationId = "com.helixiora.endpointsecurity"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            if (hasReleaseSigning) {
+                storeFile = file(releaseKeystorePath!!)
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 }

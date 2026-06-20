@@ -62,6 +62,8 @@ class _CheckInScreenState extends State<CheckInScreen> {
 
   bool get _hasSubmissionEndpoint => _submissionEndpoint.trim().isNotEmpty;
 
+  bool get _hasSubmissionSecret => AppConfig.submissionSecret.trim().isNotEmpty;
+
   bool get _hasBuiltInSubmissionEndpoint =>
       AppConfig.submissionEndpoint.trim().isNotEmpty;
 
@@ -69,11 +71,17 @@ class _CheckInScreenState extends State<CheckInScreen> {
       _checks.any((check) => check.hasPendingConfirmation);
 
   bool get _canSubmitReport =>
-      _hasSubmissionEndpoint && !_hasPendingSecurityConfirmations;
+      _hasSubmissionEndpoint &&
+      _hasSubmissionSecret &&
+      !_hasPendingSecurityConfirmations;
 
   String? get _submissionReadinessMessage {
     if (!_hasSubmissionEndpoint) {
       return 'Add a submission destination before sending this report.';
+    }
+
+    if (!_hasSubmissionSecret) {
+      return 'This build is missing its submission signing secret.';
     }
 
     if (_hasPendingSecurityConfirmations) {
@@ -223,9 +231,15 @@ class _CheckInScreenState extends State<CheckInScreen> {
     );
 
     if (action == _ReviewAction.copyJson) {
+      final payload = _hasSubmissionSecret
+          ? _submissionService.signedEnvelope(
+              submission,
+              signingSecret: AppConfig.submissionSecret,
+            )
+          : submission.toJson();
       await Clipboard.setData(
         ClipboardData(
-          text: const JsonEncoder.withIndent('  ').convert(submission.toJson()),
+          text: const JsonEncoder.withIndent('  ').convert(payload),
         ),
       );
       _showMessage('The submission payload was copied to the clipboard.');
@@ -240,6 +254,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
       await _submissionService.submit(
         submission,
         submissionEndpoint: _submissionEndpoint.trim(),
+        signingSecret: AppConfig.submissionSecret,
       );
 
       if (!mounted) {

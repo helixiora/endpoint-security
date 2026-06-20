@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 
 import '../models.dart';
@@ -25,6 +26,7 @@ class SubmissionService {
   Future<void> submit(
     EndpointSubmission submission, {
     required String submissionEndpoint,
+    required String signingSecret,
   }) async {
     if (submissionEndpoint.trim().isEmpty) {
       throw SubmissionException(
@@ -32,13 +34,27 @@ class SubmissionService {
       );
     }
 
+    if (signingSecret.trim().isEmpty) {
+      throw SubmissionException(
+        'No submission signing secret is configured for this build.',
+      );
+    }
+
     final uri = Uri.tryParse(submissionEndpoint);
-    if (uri == null) {
+    if (uri == null ||
+        !uri.hasScheme ||
+        !uri.hasAuthority ||
+        (uri.scheme != 'http' && uri.scheme != 'https')) {
       throw SubmissionException(
           'The configured submission endpoint is invalid.');
     }
 
-    final payload = jsonEncode(submission.toJson());
+    final payload = jsonEncode(
+      signedEnvelope(
+        submission,
+        signingSecret: signingSecret,
+      ),
+    );
     late http.Response response;
     try {
       response = await _sendFollowingRedirects(uri, payload).timeout(
@@ -53,6 +69,39 @@ class SubmissionService {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw SubmissionException(_buildFailureMessage(response));
     }
+
+    _validateSuccessResponse(response);
+  }
+
+  Map<String, dynamic> signedEnvelope(
+    EndpointSubmission submission, {
+    required String signingSecret,
+    DateTime? signedAt,
+  }) {
+    final trimmedSecret = signingSecret.trim();
+    if (trimmedSecret.isEmpty) {
+      throw SubmissionException(
+        'No submission signing secret is configured for this build.',
+      );
+    }
+
+    final payload = submission.toJson();
+    final signedAtUtc = (signedAt ?? DateTime.now().toUtc()).toUtc();
+    final signedAtIso = signedAtUtc.toIso8601String();
+    final payloadJson = jsonEncode(payload);
+    final signature = Hmac(sha256, utf8.encode(trimmedSecret))
+        .convert(utf8.encode('$signedAtIso\n$payloadJson'))
+        .toString();
+
+    return {
+      'schemaVersion': 2,
+      'auth': {
+        'algorithm': 'HMAC-SHA256',
+        'signedAtUtc': signedAtIso,
+        'signature': signature,
+      },
+      'payload': payload,
+    };
   }
 
   Future<http.Response> _sendFollowingRedirects(Uri uri, String payload) async {
@@ -135,6 +184,39 @@ class SubmissionService {
     }
 
     return 'The server rejected the report (${response.statusCode}): $details';
+  }
+
+  void _validateSuccessResponse(http.Response response) {
+    final body = response.body.trim();
+    if (body.isEmpty) {
+      return;
+    }
+
+    Object? decoded;
+    try {
+      decoded = jsonDecode(body);
+    } catch (_) {
+      throw SubmissionException(
+        'The server returned an invalid success response.',
+      );
+    }
+
+    if (decoded is! Map<String, dynamic>) {
+      throw SubmissionException(
+        'The server returned an invalid success response.',
+      );
+    }
+
+    if (decoded['ok'] == true) {
+      return;
+    }
+
+    final error = decoded['error']?.toString().trim();
+    if (error == null || error.isEmpty) {
+      throw SubmissionException('The server did not accept the report.');
+    }
+
+    throw SubmissionException('The server did not accept the report: $error');
   }
 
   String? _summarizeResponseBody(String body) {

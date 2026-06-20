@@ -1,8 +1,10 @@
 import 'package:endpoint_security_checkin/src/models.dart';
 import 'package:endpoint_security_checkin/src/submission/submission_service.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'dart:convert';
 
 void main() {
   test('SubmissionService follows Apps Script style redirects', () async {
@@ -36,6 +38,7 @@ void main() {
     await service.submit(
       _sampleSubmission(),
       submissionEndpoint: 'https://example.com/exec',
+      signingSecret: 'test-shared-secret',
     );
 
     expect(
@@ -44,6 +47,77 @@ void main() {
         'POST https://example.com/exec',
         'GET https://script.googleusercontent.com/macros/echo?id=1',
       ]),
+    );
+  });
+
+  test('SubmissionService signs the payload envelope', () {
+    final service = SubmissionService();
+    final signedAt = DateTime.utc(2026, 3, 17, 9, 1);
+    final envelope = service.signedEnvelope(
+      _sampleSubmission(),
+      signingSecret: 'test-shared-secret',
+      signedAt: signedAt,
+    );
+
+    final payload = envelope['payload'] as Map<String, dynamic>;
+    final expectedSignature = Hmac(sha256, utf8.encode('test-shared-secret'))
+        .convert(
+          utf8.encode('${signedAt.toIso8601String()}\n${jsonEncode(payload)}'),
+        )
+        .toString();
+
+    expect(envelope['schemaVersion'], 2);
+    expect(envelope['auth'], {
+      'algorithm': 'HMAC-SHA256',
+      'signedAtUtc': signedAt.toIso8601String(),
+      'signature': expectedSignature,
+    });
+    expect(payload['owner'], {'name': 'Jane Doe', 'email': 'jane@example.com'});
+  });
+
+  test('SubmissionService rejects ok false success responses', () async {
+    final service = SubmissionService(
+      client: MockClient(
+        (_) async => http.Response(
+          '{"ok":false,"error":"Invalid envelope signature."}',
+          200,
+        ),
+      ),
+    );
+
+    await expectLater(
+      service.submit(
+        _sampleSubmission(),
+        submissionEndpoint: 'https://example.com/exec',
+        signingSecret: 'test-shared-secret',
+      ),
+      throwsA(
+        isA<SubmissionException>().having(
+          (error) => error.message,
+          'message',
+          contains('Invalid envelope signature.'),
+        ),
+      ),
+    );
+  });
+
+  test('SubmissionService requires a signing secret', () async {
+    final service =
+        SubmissionService(client: MockClient((_) async => fail('')));
+
+    await expectLater(
+      service.submit(
+        _sampleSubmission(),
+        submissionEndpoint: 'https://example.com/exec',
+        signingSecret: '',
+      ),
+      throwsA(
+        isA<SubmissionException>().having(
+          (error) => error.message,
+          'message',
+          contains('No submission signing secret'),
+        ),
+      ),
     );
   });
 }

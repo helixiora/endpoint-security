@@ -25,6 +25,7 @@ jobs:
         env:
           ORGANIZATION_NAME: ${{ vars.ORGANIZATION_NAME }}
           SUBMISSION_ENDPOINT: ${{ secrets.SUBMISSION_ENDPOINT }}
+          SUBMISSION_SECRET: ${{ secrets.SUBMISSION_SECRET }}
         run: |
           $organization = if ($env:ORGANIZATION_NAME) { $env:ORGANIZATION_NAME } else { "Helixiora" }
           $appVersion = (git describe --tags --always --dirty).Trim()
@@ -32,6 +33,7 @@ jobs:
             -OrganizationName $organization `
             -AppVersion $appVersion `
             -SubmissionEndpoint $env:SUBMISSION_ENDPOINT `
+            -SubmissionSecret $env:SUBMISSION_SECRET `
             -ZipArtifact
 
       - name: Upload Windows artifact

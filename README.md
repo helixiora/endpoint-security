@@ -40,7 +40,8 @@ There is no clean portable API that lets a normal third-party app inspect all of
    flutter run -d macos \
      --dart-define=ORGANIZATION_NAME="Helixiora" \
      --dart-define=APP_VERSION="$(./scripts/git-version.sh)" \
-     --dart-define=SUBMISSION_ENDPOINT="https://script.google.com/macros/s/your-id/exec"
+     --dart-define=SUBMISSION_ENDPOINT="https://script.google.com/macros/s/your-id/exec" \
+     --dart-define=SUBMISSION_SECRET="shared-secret-from-apps-script-properties"
    ```
 
 The app window title and the footer version badge use `APP_VERSION`. For tagged builds, the recommended value is `git describe --tags --always --dirty`, which [`scripts/git-version.sh`](scripts/git-version.sh) already wraps.
@@ -88,7 +89,7 @@ Windows artifacts must be built on a Windows host.
 From PowerShell on a Windows machine:
 
 ```powershell
-./scripts/build-windows.ps1 -OrganizationName "Helixiora" -SubmissionEndpoint "https://script.google.com/macros/s/your-id/exec" -ZipArtifact
+./scripts/build-windows.ps1 -OrganizationName "Helixiora" -SubmissionEndpoint "https://script.google.com/macros/s/your-id/exec" -SubmissionSecret "shared-secret-from-apps-script-properties" -ZipArtifact
 ```
 
 If `-AppVersion` is omitted, the script derives it from `git describe --tags --always --dirty`.
@@ -106,6 +107,7 @@ Recommended repository settings:
 
 - Repository variable `ORGANIZATION_NAME`: `Helixiora`
 - Repository secret `SUBMISSION_ENDPOINT`: your production submission URL
+- Repository secret `SUBMISSION_SECRET`: the shared HMAC secret configured in Apps Script script properties
 
 Then open `Actions` -> `Build Windows` -> `Run workflow`. The workflow builds the Windows release on `windows-latest` and uploads `helixiora-endpoint-security-windows.zip` as an artifact.
 
@@ -139,8 +141,12 @@ Recommended repository settings:
 
 - Repository variable `ORGANIZATION_NAME`: `Helixiora`
 - Repository secret `SUBMISSION_ENDPOINT`: your production submission URL
+- Repository secret `SUBMISSION_SECRET`: the shared HMAC secret configured in Apps Script script properties
+- Optional Android release signing secrets: `HELIXIORA_ANDROID_KEYSTORE_BASE64`, `HELIXIORA_ANDROID_KEYSTORE_PASSWORD`, `HELIXIORA_ANDROID_KEY_ALIAS`, and `HELIXIORA_ANDROID_KEY_PASSWORD`
 
 Open `Actions` -> `Build All Platforms` -> `Run workflow` to generate all artifacts in one run.
+
+If Android signing secrets are omitted, the Android release APK is built unsigned. Local Android release signing uses the same values as Gradle properties or environment variables, with `HELIXIORA_ANDROID_KEYSTORE` pointing at the `.jks` file.
 
 ## Maintenance automation
 

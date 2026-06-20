@@ -1,4 +1,4 @@
-package com.example.endpoint_security_checkin
+package com.helixiora.endpointsecurity
 
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity

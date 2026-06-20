@@ -90,6 +90,11 @@ jobs:
     env:
       ORGANIZATION_NAME: ${{ vars.ORGANIZATION_NAME || 'Helixiora' }}
       SUBMISSION_ENDPOINT: ${{ secrets.SUBMISSION_ENDPOINT }}
+      SUBMISSION_SECRET: ${{ secrets.SUBMISSION_SECRET }}
+      HELIXIORA_ANDROID_KEYSTORE_BASE64: ${{ secrets.HELIXIORA_ANDROID_KEYSTORE_BASE64 }}
+      HELIXIORA_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.HELIXIORA_ANDROID_KEYSTORE_PASSWORD }}
+      HELIXIORA_ANDROID_KEY_ALIAS: ${{ secrets.HELIXIORA_ANDROID_KEY_ALIAS }}
+      HELIXIORA_ANDROID_KEY_PASSWORD: ${{ secrets.HELIXIORA_ANDROID_KEY_PASSWORD }}
       APP_VERSION: ''
 
     steps:
@@ -133,6 +138,14 @@ jobs:
           $appVersion = (git describe --tags --always --dirty).Trim()
           "APP_VERSION=$appVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Prepare Android release signing
+        if: matrix.label == 'Android APK' && env.HELIXIORA_ANDROID_KEYSTORE_BASE64 != ''
+        shell: bash
+        run: |
+          keystore_path="$RUNNER_TEMP/helixiora-android-release.jks"
+          printf '%s' "$HELIXIORA_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+          echo "HELIXIORA_ANDROID_KEYSTORE=$keystore_path" >> "$GITHUB_ENV"
+
       - name: Build artifact (Unix)
         if: matrix.shell == 'bash'
         shell: bash
@@ -143,6 +156,9 @@ jobs:
           )
           if [ -n "$SUBMISSION_ENDPOINT" ]; then
             args+=(--dart-define=SUBMISSION_ENDPOINT="$SUBMISSION_ENDPOINT")
+          fi
+          if [ -n "$SUBMISSION_SECRET" ]; then
+            args+=(--dart-define=SUBMISSION_SECRET="$SUBMISSION_SECRET")
           fi
           ${{ matrix.build_command }} "${args[@]}"
 
@@ -156,6 +172,9 @@ jobs:
           )
           if ($env:SUBMISSION_ENDPOINT) {
             $args += "--dart-define=SUBMISSION_ENDPOINT=$env:SUBMISSION_ENDPOINT"
+          }
+          if ($env:SUBMISSION_SECRET) {
+            $args += "--dart-define=SUBMISSION_SECRET=$env:SUBMISSION_SECRET"
           }
           & flutter build windows --release @args
 
