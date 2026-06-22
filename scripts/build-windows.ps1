@@ -2,6 +2,7 @@ param(
     [string]$FlutterExe = "flutter",
     [string]$OrganizationName = "Helixiora",
     [string]$SubmissionEndpoint = "",
+    [string]$SubmissionSecret = "",
     [string]$AppVersion = "",
     [switch]$SkipAnalyze,
     [switch]$SkipTests,
@@ -47,6 +48,9 @@ try {
 
     if ($SubmissionEndpoint.Trim()) {
         $buildArgs += "--dart-define=SUBMISSION_ENDPOINT=$SubmissionEndpoint"
+    }
+    if ($SubmissionSecret.Trim()) {
+        $buildArgs += "--dart-define=SUBMISSION_SECRET=$SubmissionSecret"
     }
 
     & $FlutterExe @buildArgs

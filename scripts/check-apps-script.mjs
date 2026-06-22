@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
@@ -110,6 +111,26 @@ const sandbox = {
       };
     },
   },
+  PropertiesService: {
+    getScriptProperties() {
+      return {
+        getProperty(name) {
+          return name === 'SUBMISSION_SHARED_SECRET'
+            ? 'test-shared-secret'
+            : null;
+        },
+      };
+    },
+  },
+  Utilities: {
+    computeHmacSha256Signature(value, secret) {
+      const digest = crypto
+        .createHmac('sha256', secret)
+        .update(value)
+        .digest();
+      return [...digest].map((byte) => (byte > 127 ? byte - 256 : byte));
+    },
+  },
   SpreadsheetApp: {
     getActiveSpreadsheet() {
       throw new Error('SpreadsheetApp is not used by this check script.');
@@ -121,6 +142,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: codePath });
 
 assert.equal(typeof sandbox.flattenPayload_, 'function');
+assert.equal(typeof sandbox.verifyEnvelope_, 'function');
 assert.equal(typeof sandbox.upsertHeaders_, 'function');
 assert.equal(typeof sandbox.appendRow_, 'function');
 assert.equal(typeof sandbox.jsonResponse_, 'function');
@@ -154,7 +176,47 @@ const payload = {
   },
 };
 
-const flattened = sandbox.flattenPayload_(payload);
+const signedAtUtc = new Date().toISOString();
+const payloadJson = JSON.stringify(payload);
+const signature = crypto
+  .createHmac('sha256', 'test-shared-secret')
+  .update(`${signedAtUtc}\n${payloadJson}`)
+  .digest('hex');
+const envelope = {
+  schemaVersion: 2,
+  auth: {
+    algorithm: 'HMAC-SHA256',
+    signedAtUtc,
+    signature,
+  },
+  payload,
+};
+
+assert.deepEqual(sandbox.verifyEnvelope_(envelope), payload);
+assert.throws(
+  () =>
+    sandbox.verifyEnvelope_({
+      ...envelope,
+      auth: {
+        ...envelope.auth,
+        signature: 'bad-signature',
+      },
+    }),
+  /Invalid envelope signature/
+);
+assert.throws(
+  () =>
+    sandbox.verifyEnvelope_({
+      ...envelope,
+      auth: {
+        ...envelope.auth,
+        signedAtUtc: '2020-01-01T00:00:00.000Z',
+      },
+    }),
+  /outside the allowed window/
+);
+
+const flattened = sandbox.flattenPayload_(sandbox.verifyEnvelope_(envelope));
 
 assert.equal(flattened['/owner/name'], 'Alice / Ops');
 assert.equal(flattened['/owner/email'], 'alice@example.com');

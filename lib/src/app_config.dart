@@ -16,6 +16,11 @@ class AppConfig {
     defaultValue: '',
   );
 
+  static const submissionSecret = String.fromEnvironment(
+    'SUBMISSION_SECRET',
+    defaultValue: '',
+  );
+
   static String get displayVersion {
     final trimmed = appVersion.trim();
     return trimmed.isEmpty ? 'unknown' : trimmed;

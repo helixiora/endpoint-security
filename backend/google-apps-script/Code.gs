@@ -4,7 +4,8 @@ function doPost(e) {
       throw new Error('Missing request body.');
     }
 
-    const payload = JSON.parse(e.postData.contents);
+    const envelope = JSON.parse(e.postData.contents);
+    const payload = verifyEnvelope_(envelope);
     const sheet = getTargetSheet_();
     const row = flattenPayload_(payload);
     const headers = upsertHeaders_(sheet, Object.keys(row).sort());
@@ -21,6 +22,85 @@ function doPost(e) {
       error: String(error),
     });
   }
+}
+
+function verifyEnvelope_(envelope) {
+  if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) {
+    throw new Error('Invalid signed envelope.');
+  }
+
+  if (envelope.schemaVersion !== 2) {
+    throw new Error('Unsupported envelope schema version.');
+  }
+
+  const auth = envelope.auth;
+  const payload = envelope.payload;
+  if (!auth || typeof auth !== 'object' || Array.isArray(auth)) {
+    throw new Error('Missing envelope auth block.');
+  }
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('Missing envelope payload.');
+  }
+
+  const signedAtUtc = String(auth.signedAtUtc || '');
+  const signature = String(auth.signature || '');
+  if (auth.algorithm !== 'HMAC-SHA256' || !signedAtUtc || !signature) {
+    throw new Error('Invalid envelope auth fields.');
+  }
+
+  const signedAt = new Date(signedAtUtc);
+  if (Number.isNaN(signedAt.getTime())) {
+    throw new Error('Invalid envelope timestamp.');
+  }
+
+  const maxSkewMilliseconds = 15 * 60 * 1000;
+  if (Math.abs(Date.now() - signedAt.getTime()) > maxSkewMilliseconds) {
+    throw new Error('Envelope timestamp is outside the allowed window.');
+  }
+
+  const secret = getSubmissionSecret_();
+  const canonicalPayload = JSON.stringify(payload);
+  const expectedSignature = hmacHex_(secret, `${signedAtUtc}\n${canonicalPayload}`);
+  if (!constantTimeEquals_(signature, expectedSignature)) {
+    throw new Error('Invalid envelope signature.');
+  }
+
+  return payload;
+}
+
+function getSubmissionSecret_() {
+  const secret = PropertiesService.getScriptProperties().getProperty(
+    'SUBMISSION_SHARED_SECRET'
+  );
+  if (!secret) {
+    throw new Error('SUBMISSION_SHARED_SECRET script property is not configured.');
+  }
+  return secret;
+}
+
+function hmacHex_(secret, value) {
+  const bytes = Utilities.computeHmacSha256Signature(value, secret);
+  return bytes
+    .map((byte) => {
+      const normalized = byte < 0 ? byte + 256 : byte;
+      return normalized.toString(16).padStart(2, '0');
+    })
+    .join('');
+}
+
+function constantTimeEquals_(left, right) {
+  const leftText = String(left);
+  const rightText = String(right);
+  let diff = leftText.length ^ rightText.length;
+  const maxLength = Math.max(leftText.length, rightText.length);
+
+  for (let index = 0; index < maxLength; index += 1) {
+    const leftCode = index < leftText.length ? leftText.charCodeAt(index) : 0;
+    const rightCode = index < rightText.length ? rightText.charCodeAt(index) : 0;
+    diff |= leftCode ^ rightCode;
+  }
+
+  return diff === 0;
 }
 
 function getTargetSheet_() {
