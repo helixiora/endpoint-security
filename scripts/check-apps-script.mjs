@@ -92,6 +92,24 @@ class FakeSheet {
   }
 }
 
+class FakeSpreadsheet {
+  constructor() {
+    this.sheets = new Map();
+  }
+
+  getSheetByName(name) {
+    return this.sheets.get(name) ?? null;
+  }
+
+  insertSheet(name) {
+    const sheet = new FakeSheet();
+    this.sheets.set(name, sheet);
+    return sheet;
+  }
+}
+
+const fakeSpreadsheet = new FakeSpreadsheet();
+
 const sandbox = {
   console,
   JSON,
@@ -133,7 +151,7 @@ const sandbox = {
   },
   SpreadsheetApp: {
     getActiveSpreadsheet() {
-      throw new Error('SpreadsheetApp is not used by this check script.');
+      return fakeSpreadsheet;
     },
   },
 };
@@ -142,6 +160,7 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox, { filename: codePath });
 
 assert.equal(typeof sandbox.flattenPayload_, 'function');
+assert.equal(typeof sandbox.buildSummaryRow_, 'function');
 assert.equal(typeof sandbox.verifyEnvelope_, 'function');
 assert.equal(typeof sandbox.upsertHeaders_, 'function');
 assert.equal(typeof sandbox.appendRow_, 'function');
@@ -163,8 +182,20 @@ const payload = {
     {
       detectedAutomatically: true,
       detectedStatus: 'enabled',
+      effectiveStatus: 'enabled',
       id: 'disk_encryption',
+      label: 'Hard disk encryption',
       reviewedStatus: 'enabled',
+      summary: 'FileVault is enabled.',
+    },
+    {
+      detectedAutomatically: true,
+      detectedStatus: 'disabled',
+      effectiveStatus: 'disabled',
+      id: 'firewall',
+      label: 'Firewall',
+      reviewedStatus: 'disabled',
+      summary: 'The macOS application firewall is disabled.',
     },
   ],
   notes: null,
@@ -224,12 +255,33 @@ assert.equal(flattened['/endpoint/platform'], 'macos');
 assert.equal(flattened['/endpoint/extra/gpu'], 'M3');
 assert.equal(flattened['/checks/0/id'], 'disk_encryption');
 assert.equal(flattened['/checks/0/detectedAutomatically'], true);
+assert.equal(flattened['/checks/1/id'], 'firewall');
+assert.equal(flattened['/checks/1/effectiveStatus'], 'disabled');
 assert.equal(flattened['/notes'], 'null');
 assert.equal(flattened['/emptyList'], '[]');
 assert.equal(flattened['/emptyObject'], '{}');
 assert.equal(flattened['/weirdKey/slash~1key'], 'value');
 assert.equal(flattened['/weirdKey/tilde~0key'], 'ok');
 assert.ok(!Object.prototype.hasOwnProperty.call(flattened, 'rawJson'));
+
+const summaryRow = sandbox.buildSummaryRow_(payload);
+assert.equal(summaryRow['Submitted at (UTC)'], '2026-03-18T08:30:00.000Z');
+assert.equal(summaryRow['Owner name'], 'Alice / Ops');
+assert.equal(summaryRow['Owner email'], 'alice@example.com');
+assert.equal(summaryRow.Platform, 'macos');
+assert.equal(summaryRow['Overall status'], 'Needs attention');
+assert.equal(summaryRow['Secure checks'], 1);
+assert.equal(summaryRow['Needs attention'], 1);
+assert.equal(summaryRow['Needs review'], 0);
+assert.match(summaryRow.Findings, /Firewall: Disabled/);
+assert.equal(
+  summaryRow['Check: Hard disk encryption'],
+  'Hard disk encryption: Enabled | FileVault is enabled.'
+);
+assert.equal(
+  summaryRow['Check: Firewall'],
+  'Firewall: Disabled | The macOS application firewall is disabled.'
+);
 
 const sheet = new FakeSheet();
 const initialHeaders = Object.keys(flattened).sort();
@@ -261,6 +313,29 @@ assert.equal(
 assert.equal(
   sheet.rows[2][expandedHeaders.indexOf('/endpoint/platform')],
   'windows'
+);
+
+const doPostResponse = sandbox.doPost({
+  postData: {
+    contents: JSON.stringify(envelope),
+  },
+});
+assert.equal(doPostResponse.mimeType, 'application/json');
+assert.equal(JSON.parse(doPostResponse.text).ok, true);
+
+const overviewSheet = fakeSpreadsheet.getSheetByName('Endpoint Check-Ins');
+const rawSheet = fakeSpreadsheet.getSheetByName('Endpoint Check-Ins Raw');
+assert.ok(overviewSheet);
+assert.ok(rawSheet);
+assert.equal(overviewSheet.rows.length, 2);
+assert.equal(rawSheet.rows.length, 2);
+assert.equal(
+  overviewSheet.rows[1][overviewSheet.rows[0].indexOf('Overall status')],
+  'Needs attention'
+);
+assert.equal(
+  rawSheet.rows[1][rawSheet.rows[0].indexOf('/owner/email')],
+  'alice@example.com'
 );
 
 const response = sandbox.jsonResponse_({ ok: true });

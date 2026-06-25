@@ -6,11 +6,19 @@ function doPost(e) {
 
     const envelope = JSON.parse(e.postData.contents);
     const payload = verifyEnvelope_(envelope);
-    const sheet = getTargetSheet_();
-    const row = flattenPayload_(payload);
-    const headers = upsertHeaders_(sheet, Object.keys(row).sort());
+    const summarySheet = getTargetSheet_();
+    const summaryRow = buildSummaryRow_(payload);
+    const summaryHeaders = upsertHeaders_(
+      summarySheet,
+      Object.keys(summaryRow)
+    );
+    appendRow_(summarySheet, summaryHeaders, summaryRow);
 
-    appendRow_(sheet, headers, row);
+    const rawSheet = getRawSheet_();
+    const rawRow = flattenPayload_(payload);
+    const rawHeaders = upsertHeaders_(rawSheet, Object.keys(rawRow).sort());
+
+    appendRow_(rawSheet, rawHeaders, rawRow);
 
     return jsonResponse_({
       ok: true,
@@ -104,7 +112,14 @@ function constantTimeEquals_(left, right) {
 }
 
 function getTargetSheet_() {
-  const sheetName = 'Endpoint Check-Ins';
+  return getSheet_('Endpoint Check-Ins');
+}
+
+function getRawSheet_() {
+  return getSheet_('Endpoint Check-Ins Raw');
+}
+
+function getSheet_(sheetName) {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = spreadsheet.getSheetByName(sheetName);
 
@@ -113,6 +128,133 @@ function getTargetSheet_() {
   }
 
   return sheet;
+}
+
+function buildSummaryRow_(payload) {
+  const checks = Array.isArray(payload.checks) ? payload.checks : [];
+  const checkSummary = summarizeChecks_(checks);
+  const row = {
+    'Submitted at (UTC)': valueOrBlank_(payload.submittedAtUtc),
+    Organization: valueOrBlank_(payload.organization),
+    'Owner name': valueOrBlank_(payload.owner && payload.owner.name),
+    'Owner email': valueOrBlank_(payload.owner && payload.owner.email),
+    'Endpoint name': valueOrBlank_(
+      payload.endpoint && payload.endpoint.submittedName
+    ),
+    'Detected endpoint name': valueOrBlank_(
+      payload.endpoint && payload.endpoint.detectedName
+    ),
+    Platform: valueOrBlank_(payload.endpoint && payload.endpoint.platform),
+    'OS version': valueOrBlank_(payload.endpoint && payload.endpoint.osVersion),
+    'Device model': valueOrBlank_(
+      payload.endpoint && payload.endpoint.deviceModel
+    ),
+    'Device identifier': valueOrBlank_(
+      payload.endpoint && payload.endpoint.deviceIdentifier
+    ),
+    'Overall status': checkSummary.overallStatus,
+    'Secure checks': checkSummary.secureCount,
+    'Needs attention': checkSummary.attentionCount,
+    'Needs review': checkSummary.reviewCount,
+    'Not applicable': checkSummary.notApplicableCount,
+    Findings: checkSummary.findings,
+    Notes: valueOrBlank_(payload.notes),
+  };
+
+  checks.forEach((check) => {
+    const label = valueOrBlank_(check.label || check.id || 'Unnamed check');
+    row[`Check: ${label}`] = describeCheck_(check);
+  });
+
+  return row;
+}
+
+function summarizeChecks_(checks) {
+  let secureCount = 0;
+  let attentionCount = 0;
+  let reviewCount = 0;
+  let notApplicableCount = 0;
+  const findings = [];
+
+  checks.forEach((check) => {
+    const status = getEffectiveStatus_(check);
+    if (status === 'enabled') {
+      secureCount += 1;
+      return;
+    }
+    if (status === 'not_applicable') {
+      notApplicableCount += 1;
+      return;
+    }
+    if (status === 'manual_review' || status === 'unknown') {
+      reviewCount += 1;
+    } else {
+      attentionCount += 1;
+    }
+    findings.push(describeCheck_(check));
+  });
+
+  return {
+    secureCount,
+    attentionCount,
+    reviewCount,
+    notApplicableCount,
+    overallStatus:
+      attentionCount > 0
+        ? 'Needs attention'
+        : reviewCount > 0
+          ? 'Needs review'
+          : 'Compliant',
+    findings: findings.join('\n'),
+  };
+}
+
+function describeCheck_(check) {
+  const label = valueOrBlank_(check.label || check.id || 'Unnamed check');
+  const status = statusLabel_(getEffectiveStatus_(check));
+  const summary = valueOrBlank_(check.summary);
+  const details = valueOrBlank_(check.details);
+  const parts = [`${label}: ${status}`];
+
+  if (summary) {
+    parts.push(summary);
+  }
+  if (details) {
+    parts.push(details);
+  }
+
+  return parts.join(' | ');
+}
+
+function getEffectiveStatus_(check) {
+  return String(
+    check.effectiveStatus ||
+      check.reviewedStatus ||
+      check.detectedStatus ||
+      'unknown'
+  );
+}
+
+function statusLabel_(status) {
+  switch (status) {
+    case 'enabled':
+      return 'Enabled';
+    case 'disabled':
+      return 'Disabled';
+    case 'not_applicable':
+      return 'Not applicable';
+    case 'manual_review':
+      return 'Manual review';
+    default:
+      return 'Unknown';
+  }
+}
+
+function valueOrBlank_(value) {
+  if (value === null || typeof value === 'undefined') {
+    return '';
+  }
+  return value;
 }
 
 function flattenPayload_(payload) {
