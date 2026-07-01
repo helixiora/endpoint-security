@@ -59,20 +59,24 @@ void main() {
       signedAt: signedAt,
     );
 
-    final payload = envelope['payload'] as Map<String, dynamic>;
+    final payloadJson = envelope['payloadJson'] as String;
+    final payload = jsonDecode(payloadJson) as Map<String, dynamic>;
     final expectedSignature = Hmac(sha256, utf8.encode('test-shared-secret'))
         .convert(
-          utf8.encode('${signedAt.toIso8601String()}\n${jsonEncode(payload)}'),
+          utf8.encode('${signedAt.toIso8601String()}\n$payloadJson'),
         )
         .toString();
 
-    expect(envelope['schemaVersion'], 2);
+    expect(envelope['schemaVersion'], 3);
     expect(envelope['auth'], {
       'algorithm': 'HMAC-SHA256',
       'signedAtUtc': signedAt.toIso8601String(),
       'signature': expectedSignature,
     });
     expect(payload['owner'], {'name': 'Jane Doe', 'email': 'jane@example.com'});
+    expect(payload['schemaVersion'], 2);
+    expect(payload.containsKey('report'), isFalse);
+    expect(payload['collectedAtUtc'], isNotNull);
   });
 
   test('SubmissionService rejects ok false success responses', () async {
