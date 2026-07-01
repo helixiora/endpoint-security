@@ -142,8 +142,14 @@ class DesktopProbeParsers {
     required String stderr,
     required int exitCode,
   }) {
+    // socketfilterfw --getglobalstate prints "Firewall is enabled.
+    // (State = 1)", "(State = 2)" for block-all, or "Firewall is disabled.
+    // (State = 0)". Match those exact forms so an unrelated error message
+    // containing "enabled" is not misread.
     final combined = '${stdout.trim()}\n${stderr.trim()}'.toLowerCase();
-    if (combined.contains('enabled')) {
+    if (combined.contains('firewall is enabled') ||
+        combined.contains('state = 1') ||
+        combined.contains('state = 2')) {
       return const SecurityCheckResult(
         id: 'firewall',
         label: 'Firewall',
@@ -152,7 +158,8 @@ class DesktopProbeParsers {
         summary: 'The macOS application firewall is enabled.',
       );
     }
-    if (combined.contains('disabled')) {
+    if (combined.contains('firewall is disabled') ||
+        combined.contains('state = 0')) {
       return const SecurityCheckResult(
         id: 'firewall',
         label: 'Firewall',
@@ -247,6 +254,22 @@ class DesktopProbeParsers {
     final active = '${payload['Active'] ?? ''}'.trim();
     final secure = '${payload['Secure'] ?? ''}'.trim();
     final timeout = int.tryParse('${payload['Timeout'] ?? ''}'.trim()) ?? 0;
+    final inactivityLimit =
+        int.tryParse('${payload['InactivityLimit'] ?? ''}'.trim()) ?? 0;
+
+    // Modern Windows fleets usually enforce locking through the machine
+    // inactivity limit policy rather than the legacy screen saver, so the
+    // policy wins when it is set.
+    if (inactivityLimit > 0) {
+      return SecurityCheckResult(
+        id: 'screen_lock',
+        label: 'Screensaver / screen lock',
+        detectedStatus: CheckStatus.enabled,
+        detectedAutomatically: true,
+        summary:
+            'A machine inactivity limit locks this device after $inactivityLimit seconds.',
+      );
+    }
 
     if (active.isEmpty || secure.isEmpty) {
       return SecurityCheckResult(
@@ -270,24 +293,20 @@ class DesktopProbeParsers {
       );
     }
 
-    if (active == '0' || timeout <= 0) {
-      return const SecurityCheckResult(
-        id: 'screen_lock',
-        label: 'Screensaver / screen lock',
-        detectedStatus: CheckStatus.disabled,
-        detectedAutomatically: true,
-        summary: 'The Windows screen saver timeout is disabled.',
-      );
-    }
-
+    // Windows can still require sign-in after sleep or via dynamic lock even
+    // when the legacy screen saver is off, and this app cannot read those
+    // settings reliably, so the employee has to confirm.
     return SecurityCheckResult(
       id: 'screen_lock',
       label: 'Screensaver / screen lock',
-      detectedStatus: CheckStatus.disabled,
-      detectedAutomatically: true,
+      detectedStatus: CheckStatus.manualReview,
+      detectedAutomatically: false,
       summary:
-          'The screen saver is active but unlock does not require credentials.',
-      details: 'Active=$active Secure=$secure Timeout=$timeout',
+          'No secure screen saver or inactivity limit was detected automatically.',
+      details:
+          'The device may still lock through sleep sign-in or dynamic lock settings that this app cannot read. '
+          'Confirm whether the device locks automatically and requires credentials to unlock. '
+          '(Active=$active Secure=$secure Timeout=$timeout)',
     );
   }
 

@@ -30,6 +30,63 @@ void main() {
       expect(result.detectedStatus, CheckStatus.enabled);
     });
 
+    test('parses macOS firewall states from socketfilterfw output', () {
+      final enabled = DesktopProbeParsers.parseMacFirewall(
+        stdout: 'Firewall is enabled. (State = 1)',
+        stderr: '',
+        exitCode: 0,
+      );
+      final disabled = DesktopProbeParsers.parseMacFirewall(
+        stdout: 'Firewall is disabled. (State = 0)',
+        stderr: '',
+        exitCode: 0,
+      );
+      final unrelatedError = DesktopProbeParsers.parseMacFirewall(
+        stdout: '',
+        stderr: 'This feature could not be enabled: permission denied.',
+        exitCode: 1,
+      );
+
+      expect(enabled.detectedStatus, CheckStatus.enabled);
+      expect(disabled.detectedStatus, CheckStatus.disabled);
+      expect(unrelatedError.detectedStatus, CheckStatus.unknown);
+    });
+
+    test('windows inactivity limit policy counts as screen lock', () {
+      final result = DesktopProbeParsers.parseWindowsScreenLock(
+        stdout:
+            '{"Active":null,"Secure":null,"Timeout":null,"InactivityLimit":900}',
+        stderr: '',
+        exitCode: 0,
+      );
+
+      expect(result.detectedStatus, CheckStatus.enabled);
+      expect(result.summary, contains('900'));
+    });
+
+    test('windows without screen saver or policy needs manual review', () {
+      final result = DesktopProbeParsers.parseWindowsScreenLock(
+        stdout:
+            '{"Active":"0","Secure":"0","Timeout":"0","InactivityLimit":null}',
+        stderr: '',
+        exitCode: 0,
+      );
+
+      expect(result.detectedStatus, CheckStatus.manualReview);
+      expect(result.requiresUserConfirmation, isTrue);
+    });
+
+    test('windows secure screen saver still counts as screen lock', () {
+      final result = DesktopProbeParsers.parseWindowsScreenLock(
+        stdout:
+            '{"Active":"1","Secure":"1","Timeout":"600","InactivityLimit":null}',
+        stderr: '',
+        exitCode: 0,
+      );
+
+      expect(result.detectedStatus, CheckStatus.enabled);
+    });
+
     test('parses partially enabled Windows firewall as manual review', () {
       final result = DesktopProbeParsers.parseWindowsFirewall(
         stdout:

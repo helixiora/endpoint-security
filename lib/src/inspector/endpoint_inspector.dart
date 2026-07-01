@@ -1,16 +1,20 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../models.dart';
 import 'desktop_probes.dart';
 
 class EndpointInspector {
-  EndpointInspector({DeviceInfoPlugin? deviceInfo})
-      : _deviceInfo = deviceInfo ?? DeviceInfoPlugin();
+  EndpointInspector({DeviceInfoPlugin? deviceInfo, DesktopProbes? probes})
+      : _deviceInfo = deviceInfo ?? DeviceInfoPlugin(),
+        _probes = probes ?? DesktopProbes();
 
   final DeviceInfoPlugin _deviceInfo;
+  final DesktopProbes _probes;
   static const _deviceIdentifierChannel = MethodChannel(
     'helixiora.endpoint_security/device_identifiers',
   );
@@ -27,6 +31,21 @@ class EndpointInspector {
   }
 
   Future<DeviceContext> _readDeviceContext() async {
+    // dart:io Platform throws UnsupportedError on the web, so this guard must
+    // come before any Platform access.
+    if (kIsWeb) {
+      final info = await _deviceInfo.webBrowserInfo;
+      final browser = info.browserName.name;
+      return DeviceContext(
+        platform: 'Web',
+        osVersion: info.platform ?? 'Unknown',
+        deviceModel: 'Browser: $browser',
+        endpointName: browser,
+        deviceIdentifierLabel: 'Browser',
+        deviceIdentifier: _preferredIdentifier(info.userAgent) ?? 'Unavailable',
+      );
+    }
+
     if (Platform.isMacOS) {
       final info = await _deviceInfo.macOsInfo;
       final identifier = await _readMacDeviceIdentifier();
@@ -129,14 +148,43 @@ class EndpointInspector {
   }
 
   Future<List<SecurityCheckResult>> _readChecks(String platform) async {
-    if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
-      return DesktopProbes.run();
+    if (kIsWeb) {
+      return _manualChecks(
+        platform,
+        firewall: SecurityCheckResult(
+          id: 'firewall',
+          label: 'Firewall',
+          detectedStatus: CheckStatus.manualReview,
+          detectedAutomatically: false,
+          summary: 'Review required on $platform.',
+          details:
+              'A browser app cannot inspect the firewall of the machine it runs on. Confirm the host firewall status manually.',
+        ),
+      );
     }
 
-    return _manualChecksForMobile(platform);
+    if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+      return _probes.run();
+    }
+
+    return _manualChecks(
+      platform,
+      firewall: const SecurityCheckResult(
+        id: 'firewall',
+        label: 'Firewall',
+        detectedStatus: CheckStatus.notApplicable,
+        detectedAutomatically: false,
+        summary: 'Not applicable on typical mobile devices.',
+        details:
+            'There is no general end-user firewall setting that a regular mobile app can inspect across all devices.',
+      ),
+    );
   }
 
-  List<SecurityCheckResult> _manualChecksForMobile(String platform) {
+  List<SecurityCheckResult> _manualChecks(
+    String platform, {
+    required SecurityCheckResult firewall,
+  }) {
     return [
       SecurityCheckResult(
         id: 'disk_encryption',
@@ -145,7 +193,7 @@ class EndpointInspector {
         detectedAutomatically: false,
         summary: 'Review required on $platform.',
         details:
-            'Mobile operating systems do not expose a portable API for third-party apps to verify storage encryption.',
+            'This platform does not expose a portable API for third-party apps to verify storage encryption.',
       ),
       SecurityCheckResult(
         id: 'screen_lock',
@@ -156,15 +204,7 @@ class EndpointInspector {
         details:
             'This app cannot reliably inspect auto-lock and password rules on $platform without enterprise device management permissions.',
       ),
-      const SecurityCheckResult(
-        id: 'firewall',
-        label: 'Firewall',
-        detectedStatus: CheckStatus.notApplicable,
-        detectedAutomatically: false,
-        summary: 'Not applicable on typical mobile devices.',
-        details:
-            'There is no general end-user firewall setting that a regular mobile app can inspect across all devices.',
-      ),
+      firewall,
       SecurityCheckResult(
         id: 'one_password',
         label: '1Password installed',
@@ -172,7 +212,7 @@ class EndpointInspector {
         detectedAutomatically: false,
         summary: 'Review required on $platform.',
         details:
-            'Installed app visibility is restricted on mobile platforms, especially on iOS.',
+            'Installed app visibility is restricted on this platform, so confirm 1Password manually.',
       ),
       SecurityCheckResult(
         id: 'suspicious_artifacts',
@@ -181,7 +221,7 @@ class EndpointInspector {
         detectedAutomatically: false,
         summary: 'Review required on $platform.',
         details:
-            'Mobile operating systems do not expose a portable API for regular apps to inspect installed apps and files broadly.',
+            'This platform does not expose a portable API for regular apps to inspect installed apps and files broadly.',
       ),
       SecurityCheckResult(
         id: 'endpoint_protection',
@@ -190,7 +230,7 @@ class EndpointInspector {
         detectedAutomatically: false,
         summary: 'Review required on $platform.',
         details:
-            'Confirm whether this mobile device is managed by MDM or protected by an approved mobile threat defense solution.',
+            'Confirm whether this device is managed by MDM or protected by an approved endpoint security solution.',
       ),
     ];
   }
@@ -234,7 +274,8 @@ class EndpointInspector {
 
   Future<String> _runCommand(String executable, List<String> arguments) async {
     try {
-      final result = await Process.run(executable, arguments);
+      final result = await Process.run(executable, arguments)
+          .timeout(const Duration(seconds: 8));
       final combined = [
         result.stdout.toString(),
         result.stderr.toString(),
