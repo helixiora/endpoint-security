@@ -19,6 +19,7 @@ Branded Flutter app for employees to run on macOS, Windows, Linux, iOS, Android,
 - Linux: best-effort checks for disk encryption, GNOME screen lock, firewall, and 1Password. Linux reporting is conservative and may require manual review.
 - iOS: device identity is collected, but security checks fall back to manual review because iOS does not expose these controls to regular apps.
 - Android: device identity is collected, but security checks fall back to manual review in this first version for portability and policy simplicity.
+- Web: browser identity is collected, and all security checks fall back to manual review because a browser app cannot inspect the host machine.
 
 ## Why this shape
 
@@ -146,6 +147,15 @@ Recommended repository settings:
 
 Open `Actions` -> `Build All Platforms` -> `Run workflow` to generate all artifacts in one run.
 
+### Releases
+
+Pushing a tag that starts with `v` (for example `v1.2.0`) runs the same build matrix and attaches all platform artifacts as zip files to an automatically created GitHub release:
+
+```bash
+git tag v1.2.0
+git push origin v1.2.0
+```
+
 If Android signing secrets are omitted, the Android release APK is built unsigned. Local Android release signing uses the same values as Gradle properties or environment variables, with `HELIXIORA_ANDROID_KEYSTORE` pointing at the `.jks` file.
 
 ## Maintenance automation
@@ -166,17 +176,26 @@ If Android signing secrets are omitted, the Android release APK is built unsigne
 ## Repository layout
 
 - [`lib/main.dart`](lib/main.dart): app entry point
-- [`lib/src/app.dart`](lib/src/app.dart): UI and review/submit flow
+- [`lib/src/app.dart`](lib/src/app.dart): check-in screen state and review/submit flow
+- [`lib/src/widgets/`](lib/src/widgets): the UI building blocks (check cards, desktop layout, review dialog, form)
 - [`lib/src/inspector/endpoint_inspector.dart`](lib/src/inspector/endpoint_inspector.dart): platform-aware inspection orchestration
 - [`lib/src/inspector/desktop_probes.dart`](lib/src/inspector/desktop_probes.dart): desktop command execution
 - [`backend/google-apps-script/Code.gs`](backend/google-apps-script/Code.gs): spreadsheet-backed webhook example
 - [`scripts/check-apps-script.mjs`](scripts/check-apps-script.mjs): local verification for the Apps Script flattener
+
+## Security model
+
+- Submissions are signed with HMAC-SHA256 over the exact payload JSON string, using a shared secret baked into the build (`SUBMISSION_SECRET`) and verified by the Apps Script backend (envelope schema v3).
+- The backend rejects envelopes older than 15 minutes and caches accepted signatures for 30 minutes, so captured requests cannot be replayed.
+- The shared secret ships inside every distributed binary and is extractable by anyone with a copy of the app. The signature therefore proves a submission came from *a* build of this app, not from a specific employee or device. This is an attestation tool built on trust in employees, not tamper-proof evidence. If stronger provenance is ever needed, issue per-employee tokens out of band.
+- Do not distribute the web build with a baked-in `SUBMISSION_SECRET` to an audience broader than the secret itself: in a web build the secret is plainly readable in the served JavaScript by anyone who can open the URL. Ship the web build secretless (employees use Copy JSON) or keep its URL as restricted as the secret.
 
 ## Limitations
 
 - The desktop app depends on local OS commands, so it is intended for normal internal distribution, not a locked-down app store sandbox.
 - The macOS runner is intentionally not sandboxed, because the automatic checks rely on local system commands.
 - Linux checks are heuristic because desktop environments and firewall stacks vary.
+- Windows screen-lock detection covers the legacy secure screen saver and the `InactivityTimeoutSecs` machine policy; sleep sign-in and dynamic lock cannot be read, so such setups fall back to employee confirmation.
 - iOS and Android cannot fully self-inspect these settings without deeper MDM or enterprise integration.
 - This is an attestation tool, not an enforcement tool. For stronger guarantees, pair it with MDM or endpoint management.
 

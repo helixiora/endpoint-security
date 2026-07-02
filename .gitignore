@@ -16,6 +16,7 @@
 /flutter_*.log
 /*.log
 /*.orig
+*.iml
 /tmp/
 !/lib/
 !/lib/**

@@ -108,7 +108,22 @@ class FakeSpreadsheet {
   }
 }
 
+class FakeCache {
+  constructor() {
+    this.entries = new Map();
+  }
+
+  get(key) {
+    return this.entries.get(key) ?? null;
+  }
+
+  put(key, value) {
+    this.entries.set(key, value);
+  }
+}
+
 const fakeSpreadsheet = new FakeSpreadsheet();
+const fakeCache = new FakeCache();
 
 const sandbox = {
   console,
@@ -152,6 +167,19 @@ const sandbox = {
   SpreadsheetApp: {
     getActiveSpreadsheet() {
       return fakeSpreadsheet;
+    },
+  },
+  LockService: {
+    getScriptLock() {
+      return {
+        waitLock() {},
+        releaseLock() {},
+      };
+    },
+  },
+  CacheService: {
+    getScriptCache() {
+      return fakeCache;
     },
   },
 };
@@ -207,23 +235,59 @@ const payload = {
   },
 };
 
+function signEnvelope(signedAtUtc, canonicalPayload) {
+  return crypto
+    .createHmac('sha256', 'test-shared-secret')
+    .update(`${signedAtUtc}\n${canonicalPayload}`)
+    .digest('hex');
+}
+
 const signedAtUtc = new Date().toISOString();
 const payloadJson = JSON.stringify(payload);
-const signature = crypto
-  .createHmac('sha256', 'test-shared-secret')
-  .update(`${signedAtUtc}\n${payloadJson}`)
-  .digest('hex');
 const envelope = {
+  schemaVersion: 3,
+  auth: {
+    algorithm: 'HMAC-SHA256',
+    signedAtUtc,
+    signature: signEnvelope(signedAtUtc, payloadJson),
+  },
+  payloadJson,
+};
+
+assert.deepEqual(sandbox.verifyEnvelope_(envelope).payload, payload);
+assert.equal(
+  sandbox.verifyEnvelope_(envelope).signature,
+  envelope.auth.signature
+);
+
+// Schema version 3 signs the exact payload string, so verification survives
+// formatting the server would not reproduce (extra whitespace here).
+const oddlyFormattedPayloadJson = `{ "notes":  "spaced out" }`;
+const oddlyFormattedEnvelope = {
+  schemaVersion: 3,
+  auth: {
+    algorithm: 'HMAC-SHA256',
+    signedAtUtc,
+    signature: signEnvelope(signedAtUtc, oddlyFormattedPayloadJson),
+  },
+  payloadJson: oddlyFormattedPayloadJson,
+};
+assert.deepEqual(sandbox.verifyEnvelope_(oddlyFormattedEnvelope).payload, {
+  notes: 'spaced out',
+});
+
+// Schema version 2 envelopes from apps in the field keep verifying.
+const legacyEnvelope = {
   schemaVersion: 2,
   auth: {
     algorithm: 'HMAC-SHA256',
     signedAtUtc,
-    signature,
+    signature: signEnvelope(signedAtUtc, payloadJson),
   },
   payload,
 };
+assert.deepEqual(sandbox.verifyEnvelope_(legacyEnvelope).payload, payload);
 
-assert.deepEqual(sandbox.verifyEnvelope_(envelope), payload);
 assert.throws(
   () =>
     sandbox.verifyEnvelope_({
@@ -240,14 +304,17 @@ assert.throws(
     sandbox.verifyEnvelope_({
       ...envelope,
       auth: {
-        ...envelope.auth,
+        algorithm: 'HMAC-SHA256',
         signedAtUtc: '2020-01-01T00:00:00.000Z',
+        signature: signEnvelope('2020-01-01T00:00:00.000Z', payloadJson),
       },
     }),
   /outside the allowed window/
 );
 
-const flattened = sandbox.flattenPayload_(sandbox.verifyEnvelope_(envelope));
+const flattened = sandbox.flattenPayload_(
+  sandbox.verifyEnvelope_(envelope).payload
+);
 
 assert.equal(flattened['/owner/name'], 'Alice / Ops');
 assert.equal(flattened['/owner/email'], 'alice@example.com');
@@ -322,6 +389,15 @@ const doPostResponse = sandbox.doPost({
 });
 assert.equal(doPostResponse.mimeType, 'application/json');
 assert.equal(JSON.parse(doPostResponse.text).ok, true);
+
+// Replaying the exact same envelope must be rejected.
+const replayResponse = sandbox.doPost({
+  postData: {
+    contents: JSON.stringify(envelope),
+  },
+});
+assert.equal(JSON.parse(replayResponse.text).ok, false);
+assert.match(JSON.parse(replayResponse.text).error, /already received/);
 
 const overviewSheet = fakeSpreadsheet.getSheetByName('Endpoint Check-Ins');
 const rawSheet = fakeSpreadsheet.getSheetByName('Endpoint Check-Ins Raw');
