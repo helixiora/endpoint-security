@@ -1,20 +1,21 @@
-import 'dart:async';
-import 'dart:io';
-
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../models.dart';
-import 'desktop_probes.dart';
+import 'native_inspection.dart';
+import 'native_inspection_unsupported.dart'
+    if (dart.library.io) 'native_inspection_io.dart' as native;
 
 class EndpointInspector {
-  EndpointInspector({DeviceInfoPlugin? deviceInfo, DesktopProbes? probes})
-      : _deviceInfo = deviceInfo ?? DeviceInfoPlugin(),
-        _probes = probes ?? DesktopProbes();
+  EndpointInspector({
+    DeviceInfoPlugin? deviceInfo,
+    NativeInspection? nativeInspection,
+  })  : _deviceInfo = deviceInfo ?? DeviceInfoPlugin(),
+        _native = nativeInspection ?? native.createNativeInspection();
 
   final DeviceInfoPlugin _deviceInfo;
-  final DesktopProbes _probes;
+  final NativeInspection _native;
   static const _deviceIdentifierChannel = MethodChannel(
     'helixiora.endpoint_security/device_identifiers',
   );
@@ -31,8 +32,8 @@ class EndpointInspector {
   }
 
   Future<DeviceContext> _readDeviceContext() async {
-    // dart:io Platform throws UnsupportedError on the web, so this guard must
-    // come before any Platform access.
+    // The web has no dart:io, so the web branch must come before any use of
+    // the native adapter.
     if (kIsWeb) {
       final info = await _deviceInfo.webBrowserInfo;
       final browser = info.browserName.name;
@@ -46,105 +47,103 @@ class EndpointInspector {
       );
     }
 
-    if (Platform.isMacOS) {
-      final info = await _deviceInfo.macOsInfo;
-      final identifier = await _readMacDeviceIdentifier();
-      return DeviceContext(
-        platform: 'macOS',
-        osVersion:
-            '${info.majorVersion}.${info.minorVersion}.${info.patchVersion}',
-        deviceModel: info.model,
-        endpointName: Platform.localHostname,
-        deviceIdentifierLabel: identifier.$1,
-        deviceIdentifier: identifier.$2,
-      );
-    }
+    switch (_native.platform) {
+      case NativePlatform.macOS:
+        final info = await _deviceInfo.macOsInfo;
+        final identifier = await _readMacDeviceIdentifier();
+        return DeviceContext(
+          platform: 'macOS',
+          osVersion:
+              '${info.majorVersion}.${info.minorVersion}.${info.patchVersion}',
+          deviceModel: info.model,
+          endpointName: _native.localHostname,
+          deviceIdentifierLabel: identifier.$1,
+          deviceIdentifier: identifier.$2,
+        );
 
-    if (Platform.isWindows) {
-      final info = await _deviceInfo.windowsInfo;
-      return DeviceContext(
-        platform: 'Windows',
-        osVersion: info.displayVersion,
-        deviceModel: info.computerName,
-        endpointName: info.computerName,
-        deviceIdentifierLabel: 'Device ID',
-        deviceIdentifier: _preferredIdentifier(
-              info.deviceId,
-              fallback: info.computerName,
-            ) ??
-            'Unavailable',
-      );
-    }
+      case NativePlatform.windows:
+        final info = await _deviceInfo.windowsInfo;
+        return DeviceContext(
+          platform: 'Windows',
+          osVersion: info.displayVersion,
+          deviceModel: info.computerName,
+          endpointName: info.computerName,
+          deviceIdentifierLabel: 'Device ID',
+          deviceIdentifier: _preferredIdentifier(
+                info.deviceId,
+                fallback: info.computerName,
+              ) ??
+              'Unavailable',
+        );
 
-    if (Platform.isLinux) {
-      final info = await _deviceInfo.linuxInfo;
-      return DeviceContext(
-        platform: 'Linux',
-        osVersion: info.version ?? 'Unknown',
-        deviceModel: info.prettyName,
-        endpointName: Platform.localHostname,
-        deviceIdentifierLabel: 'Machine ID',
-        deviceIdentifier: _preferredIdentifier(
-              info.machineId,
-              fallback: Platform.localHostname,
-            ) ??
-            'Unavailable',
-      );
-    }
+      case NativePlatform.linux:
+        final info = await _deviceInfo.linuxInfo;
+        return DeviceContext(
+          platform: 'Linux',
+          osVersion: info.version ?? 'Unknown',
+          deviceModel: info.prettyName,
+          endpointName: _native.localHostname,
+          deviceIdentifierLabel: 'Machine ID',
+          deviceIdentifier: _preferredIdentifier(
+                info.machineId,
+                fallback: _native.localHostname,
+              ) ??
+              'Unavailable',
+        );
 
-    if (Platform.isAndroid) {
-      final info = await _deviceInfo.androidInfo;
-      final androidId = await _readAndroidId();
-      final serialNumber = _preferredIdentifier(
-        info.data['serialNumber']?.toString(),
-      );
-      final identifier = _preferredIdentifier(
-        androidId,
-        fallback: _preferredIdentifier(
-          serialNumber,
+      case NativePlatform.android:
+        final info = await _deviceInfo.androidInfo;
+        final androidId = await _readAndroidId();
+        final serialNumber = _preferredIdentifier(
+          info.data['serialNumber']?.toString(),
+        );
+        final identifier = _preferredIdentifier(
+          androidId,
           fallback: _preferredIdentifier(
-            info.id,
-            fallback: _preferredIdentifier(info.fingerprint),
+            serialNumber,
+            fallback: _preferredIdentifier(
+              info.id,
+              fallback: _preferredIdentifier(info.fingerprint),
+            ),
           ),
-        ),
-      );
-      return DeviceContext(
-        platform: 'Android',
-        osVersion: 'Android ${info.version.release}',
-        deviceModel: '${info.brand} ${info.model}',
-        endpointName: info.model,
-        deviceIdentifierLabel: androidId != null
-            ? 'Android ID'
-            : serialNumber != null
-                ? 'Serial number'
-                : 'Build ID',
-        deviceIdentifier: identifier ?? 'Unavailable',
-      );
-    }
+        );
+        return DeviceContext(
+          platform: 'Android',
+          osVersion: 'Android ${info.version.release}',
+          deviceModel: '${info.brand} ${info.model}',
+          endpointName: info.model,
+          deviceIdentifierLabel: androidId != null
+              ? 'Android ID'
+              : serialNumber != null
+                  ? 'Serial number'
+                  : 'Build ID',
+          deviceIdentifier: identifier ?? 'Unavailable',
+        );
 
-    if (Platform.isIOS) {
-      final info = await _deviceInfo.iosInfo;
-      return DeviceContext(
-        platform: 'iOS',
-        osVersion: '${info.systemName} ${info.systemVersion}',
-        deviceModel: '${info.model} (${info.utsname.machine})',
-        endpointName: info.name,
-        deviceIdentifierLabel: 'Identifier for vendor',
-        deviceIdentifier: _preferredIdentifier(
-              info.identifierForVendor,
-            ) ??
-            'Unavailable',
-      );
-    }
+      case NativePlatform.ios:
+        final info = await _deviceInfo.iosInfo;
+        return DeviceContext(
+          platform: 'iOS',
+          osVersion: '${info.systemName} ${info.systemVersion}',
+          deviceModel: '${info.model} (${info.utsname.machine})',
+          endpointName: info.name,
+          deviceIdentifierLabel: 'Identifier for vendor',
+          deviceIdentifier: _preferredIdentifier(
+                info.identifierForVendor,
+              ) ??
+              'Unavailable',
+        );
 
-    return DeviceContext(
-      platform: Platform.operatingSystem,
-      osVersion: Platform.operatingSystemVersion,
-      deviceModel: 'Unknown device',
-      endpointName: Platform.localHostname,
-      deviceIdentifierLabel: 'Device identifier',
-      deviceIdentifier: Platform.localHostname,
-    );
+      case NativePlatform.other:
+        return DeviceContext(
+          platform: _native.operatingSystem,
+          osVersion: _native.operatingSystemVersion,
+          deviceModel: 'Unknown device',
+          endpointName: _native.localHostname,
+          deviceIdentifierLabel: 'Device identifier',
+          deviceIdentifier: _native.localHostname,
+        );
+    }
   }
 
   Future<List<SecurityCheckResult>> _readChecks(String platform) async {
@@ -163,22 +162,27 @@ class EndpointInspector {
       );
     }
 
-    if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
-      return _probes.run();
+    switch (_native.platform) {
+      case NativePlatform.macOS:
+      case NativePlatform.windows:
+      case NativePlatform.linux:
+        return _native.runDesktopProbes();
+      case NativePlatform.android:
+      case NativePlatform.ios:
+      case NativePlatform.other:
+        return _manualChecks(
+          platform,
+          firewall: const SecurityCheckResult(
+            id: 'firewall',
+            label: 'Firewall',
+            detectedStatus: CheckStatus.notApplicable,
+            detectedAutomatically: false,
+            summary: 'Not applicable on typical mobile devices.',
+            details:
+                'There is no general end-user firewall setting that a regular mobile app can inspect across all devices.',
+          ),
+        );
     }
-
-    return _manualChecks(
-      platform,
-      firewall: const SecurityCheckResult(
-        id: 'firewall',
-        label: 'Firewall',
-        detectedStatus: CheckStatus.notApplicable,
-        detectedAutomatically: false,
-        summary: 'Not applicable on typical mobile devices.',
-        details:
-            'There is no general end-user firewall setting that a regular mobile app can inspect across all devices.',
-      ),
-    );
   }
 
   List<SecurityCheckResult> _manualChecks(
@@ -236,7 +240,7 @@ class EndpointInspector {
   }
 
   Future<(String, String)> _readMacDeviceIdentifier() async {
-    final details = await _runCommand(
+    final details = await _native.runCommand(
       '/usr/sbin/ioreg',
       ['-rd1', '-c', 'IOPlatformExpertDevice'],
     );
@@ -256,7 +260,7 @@ class EndpointInspector {
       return ('Hardware UUID', hardwareUuid);
     }
 
-    return ('Serial number', Platform.localHostname);
+    return ('Serial number', _native.localHostname);
   }
 
   Future<String?> _readAndroidId() async {
@@ -269,20 +273,6 @@ class EndpointInspector {
       return null;
     } on MissingPluginException {
       return null;
-    }
-  }
-
-  Future<String> _runCommand(String executable, List<String> arguments) async {
-    try {
-      final result = await Process.run(executable, arguments)
-          .timeout(const Duration(seconds: 8));
-      final combined = [
-        result.stdout.toString(),
-        result.stderr.toString(),
-      ].where((value) => value.trim().isNotEmpty).join('\n');
-      return combined.trim();
-    } catch (_) {
-      return '';
     }
   }
 

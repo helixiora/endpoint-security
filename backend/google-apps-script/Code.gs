@@ -6,12 +6,15 @@ function doPost(e) {
 
     const envelope = JSON.parse(e.postData.contents);
     const verified = verifyEnvelope_(envelope);
-    rejectReplays_(verified.signature);
 
     const payload = verified.payload;
     const lock = LockService.getScriptLock();
     lock.waitLock(30 * 1000);
     try {
+      // Replay rejection runs under the lock so concurrent duplicates cannot
+      // both pass the cache check before either one records its signature.
+      rejectReplays_(verified.signature);
+
       const summarySheet = getTargetSheet_();
       const summaryRow = buildSummaryRow_(payload);
       const summaryHeaders = upsertHeaders_(
