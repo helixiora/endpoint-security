@@ -85,22 +85,24 @@ class SubmissionService {
       );
     }
 
-    final payload = submission.toJson();
     final signedAtUtc = (signedAt ?? DateTime.now().toUtc()).toUtc();
     final signedAtIso = signedAtUtc.toIso8601String();
-    final payloadJson = jsonEncode(payload);
+    // The payload travels as an opaque JSON string and the signature covers
+    // that exact string, so verification never depends on the server
+    // re-serializing the payload the same way this client did.
+    final payloadJson = jsonEncode(submission.toJson());
     final signature = Hmac(sha256, utf8.encode(trimmedSecret))
         .convert(utf8.encode('$signedAtIso\n$payloadJson'))
         .toString();
 
     return {
-      'schemaVersion': 2,
+      'schemaVersion': 3,
       'auth': {
         'algorithm': 'HMAC-SHA256',
         'signedAtUtc': signedAtIso,
         'signature': signature,
       },
-      'payload': payload,
+      'payloadJson': payloadJson,
     };
   }
 

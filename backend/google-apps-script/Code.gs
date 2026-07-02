@@ -5,20 +5,32 @@ function doPost(e) {
     }
 
     const envelope = JSON.parse(e.postData.contents);
-    const payload = verifyEnvelope_(envelope);
-    const summarySheet = getTargetSheet_();
-    const summaryRow = buildSummaryRow_(payload);
-    const summaryHeaders = upsertHeaders_(
-      summarySheet,
-      Object.keys(summaryRow)
-    );
-    appendRow_(summarySheet, summaryHeaders, summaryRow);
+    const verified = verifyEnvelope_(envelope);
 
-    const rawSheet = getRawSheet_();
-    const rawRow = flattenPayload_(payload);
-    const rawHeaders = upsertHeaders_(rawSheet, Object.keys(rawRow).sort());
+    const payload = verified.payload;
+    const lock = LockService.getScriptLock();
+    lock.waitLock(30 * 1000);
+    try {
+      // Replay rejection runs under the lock so concurrent duplicates cannot
+      // both pass the cache check before either one records its signature.
+      rejectReplays_(verified.signature);
 
-    appendRow_(rawSheet, rawHeaders, rawRow);
+      const summarySheet = getTargetSheet_();
+      const summaryRow = buildSummaryRow_(payload);
+      const summaryHeaders = upsertHeaders_(
+        summarySheet,
+        Object.keys(summaryRow)
+      );
+      appendRow_(summarySheet, summaryHeaders, summaryRow);
+
+      const rawSheet = getRawSheet_();
+      const rawRow = flattenPayload_(payload);
+      const rawHeaders = upsertHeaders_(rawSheet, Object.keys(rawRow).sort());
+
+      appendRow_(rawSheet, rawHeaders, rawRow);
+    } finally {
+      lock.releaseLock();
+    }
 
     return jsonResponse_({
       ok: true,
@@ -37,17 +49,13 @@ function verifyEnvelope_(envelope) {
     throw new Error('Invalid signed envelope.');
   }
 
-  if (envelope.schemaVersion !== 2) {
+  if (envelope.schemaVersion !== 2 && envelope.schemaVersion !== 3) {
     throw new Error('Unsupported envelope schema version.');
   }
 
   const auth = envelope.auth;
-  const payload = envelope.payload;
   if (!auth || typeof auth !== 'object' || Array.isArray(auth)) {
     throw new Error('Missing envelope auth block.');
-  }
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-    throw new Error('Missing envelope payload.');
   }
 
   const signedAtUtc = String(auth.signedAtUtc || '');
@@ -66,14 +74,52 @@ function verifyEnvelope_(envelope) {
     throw new Error('Envelope timestamp is outside the allowed window.');
   }
 
+  // Schema version 3 signs the exact payload JSON string that travels in the
+  // envelope, so verification does not depend on re-serializing the payload.
+  // Schema version 2 is kept for apps in the field that still sign a
+  // re-serialized payload object.
+  let canonicalPayload;
+  let payload;
+  if (envelope.schemaVersion === 3) {
+    if (typeof envelope.payloadJson !== 'string' || !envelope.payloadJson) {
+      throw new Error('Missing envelope payload.');
+    }
+    canonicalPayload = envelope.payloadJson;
+  } else {
+    payload = envelope.payload;
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error('Missing envelope payload.');
+    }
+    canonicalPayload = JSON.stringify(payload);
+  }
+
   const secret = getSubmissionSecret_();
-  const canonicalPayload = JSON.stringify(payload);
   const expectedSignature = hmacHex_(secret, `${signedAtUtc}\n${canonicalPayload}`);
   if (!constantTimeEquals_(signature, expectedSignature)) {
     throw new Error('Invalid envelope signature.');
   }
 
-  return payload;
+  if (envelope.schemaVersion === 3) {
+    payload = JSON.parse(canonicalPayload);
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error('Invalid envelope payload.');
+    }
+  }
+
+  return { payload, signature };
+}
+
+function rejectReplays_(signature) {
+  // Signatures are unique per submission because each envelope is signed at
+  // submit time, so a repeated signature inside the timestamp window means a
+  // replayed request.
+  const cache = CacheService.getScriptCache();
+  const cacheKey = `sig:${signature}`;
+  if (cache.get(cacheKey)) {
+    throw new Error('Duplicate envelope: this submission was already received.');
+  }
+  const replayWindowSeconds = 30 * 60;
+  cache.put(cacheKey, '1', replayWindowSeconds);
 }
 
 function getSubmissionSecret_() {

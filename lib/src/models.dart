@@ -198,9 +198,10 @@ class EndpointSubmission {
 
   Map<String, dynamic> toJson() {
     return {
-      'schemaVersion': 1,
+      'schemaVersion': 2,
       'organization': organization,
       'submittedAtUtc': submittedAt.toUtc().toIso8601String(),
+      'collectedAtUtc': report.collectedAt.toUtc().toIso8601String(),
       'owner': {
         'name': ownerName,
         'email': ownerEmail,
@@ -216,7 +217,6 @@ class EndpointSubmission {
       },
       'notes': notes,
       'checks': report.checks.map((check) => check.toJson()).toList(),
-      'report': report.toJson(),
     };
   }
 }
