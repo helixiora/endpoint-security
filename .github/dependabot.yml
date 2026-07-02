@@ -4,6 +4,18 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      github-actions-minor-patch:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+      github-actions-major:
+        patterns:
+          - '*'
+        update-types:
+          - major
     commit-message:
       prefix: chore
     labels:
@@ -14,6 +26,18 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      flutter-pub-minor-patch:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+      flutter-pub-major:
+        patterns:
+          - '*'
+        update-types:
+          - major
     commit-message:
       prefix: chore
     labels:
