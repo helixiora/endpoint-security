@@ -1,6 +1,6 @@
 # Helixiora Endpoint Security
 
-Branded Flutter app for employees to run on macOS, Windows, Linux, iOS, Android, and web. It collects a lightweight endpoint protection snapshot, lets the employee review it, and sends it to a central endpoint such as a Google Sheet-backed webhook.
+Cross-platform Flutter app for employee endpoint security attestation on macOS, Windows, Linux, iOS, Android, and web. It collects device context and a lightweight endpoint protection snapshot, lets the employee review it, and sends a signed check-in to a central endpoint such as the included Google Sheets-backed Apps Script webhook.
 
 ## What it collects
 
