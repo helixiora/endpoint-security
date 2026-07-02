@@ -1,5 +1,5 @@
 name: endpoint_security_checkin
-description: Cross-platform endpoint protection check-in for employees.
+description: Cross-platform employee endpoint security attestation app.
 publish_to: 'none'
 version: 0.9.0+1
 
