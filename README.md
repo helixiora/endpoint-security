@@ -161,7 +161,9 @@ If Android signing secrets are omitted, the Android release APK is built unsigne
 ## Maintenance automation
 
 - [`.github/workflows/quality.yml`](.github/workflows/quality.yml): runs formatting, Apps Script validation, `flutter analyze`, and `flutter test` on pushes and pull requests.
+- [`.github/workflows/pr-title.yml`](.github/workflows/pr-title.yml): checks pull request titles use Release Please-compatible Conventional Commit titles such as `feat:`, `fix:`, or `chore: release 1.2.3`.
 - [`.github/dependabot.yml`](.github/dependabot.yml): keeps Flutter `pub` dependencies and GitHub Actions dependencies moving automatically.
+- [`SECURITY.md`](SECURITY.md): documents private vulnerability reporting and supported-version expectations.
 - [`.pre-commit-config.yaml`](.pre-commit-config.yaml): Python `pre-commit` configuration that runs the repository quality gate.
 - [`.githooks/pre-commit`](.githooks/pre-commit): versioned fallback hook that defers to `pre-commit` when available.
 
