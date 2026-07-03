@@ -11,14 +11,8 @@ import 'models.dart';
 import 'storage.dart';
 import 'submission/submission_service.dart';
 import 'widgets/brand_widgets.dart';
-import 'widgets/check_card.dart';
-import 'widgets/desktop_content.dart';
-import 'widgets/device_overview.dart';
-import 'widgets/error_card.dart';
-import 'widgets/profile_form_card.dart';
+import 'widgets/check_in_flow.dart';
 import 'widgets/review_dialog.dart';
-import 'widgets/submission_endpoint_card.dart';
-import 'widgets/version_footer.dart';
 
 class EndpointSecurityApp extends StatelessWidget {
   const EndpointSecurityApp({super.key});
@@ -32,6 +26,36 @@ class EndpointSecurityApp extends StatelessWidget {
         useMaterial3: true,
         colorSchemeSeed: brandBlue,
         scaffoldBackgroundColor: brandMist,
+        cardTheme: CardThemeData(
+          color: Colors.white,
+          elevation: 0,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: const BorderSide(color: Color(0xFFDCE3EF)),
+          ),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
         inputDecorationTheme: const InputDecorationTheme(
           border: OutlineInputBorder(),
         ),
@@ -72,6 +96,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
 
   EndpointInspectionReport? _report;
   List<SecurityCheckResult> _checks = const [];
+  CheckInStep _currentStep = CheckInStep.identify;
   bool _isLoading = true;
   bool _isSubmitting = false;
   String? _loadError;
@@ -88,11 +113,41 @@ class _CheckInScreenState extends State<CheckInScreen> {
       _checks.any((check) => check.hasPendingConfirmation);
 
   bool get _canSubmitReport =>
+      _profileReadinessMessage == null &&
       _hasSubmissionEndpoint &&
       _hasSubmissionSecret &&
       !_hasPendingSecurityConfirmations;
 
+  String? get _profileReadinessMessage {
+    final ownerName = _ownerNameController.text.trim();
+    final ownerEmail = _ownerEmailController.text.trim();
+    final endpointName = _endpointNameController.text.trim();
+
+    if (ownerName.isEmpty) {
+      return 'Enter the employee name before continuing.';
+    }
+
+    if (ownerEmail.isEmpty) {
+      return 'Enter the employee email before continuing.';
+    }
+
+    if (!_emailPattern.hasMatch(ownerEmail)) {
+      return 'Enter a valid employee email address.';
+    }
+
+    if (endpointName.isEmpty) {
+      return 'Enter the endpoint name before continuing.';
+    }
+
+    return null;
+  }
+
   String? get _submissionReadinessMessage {
+    final profileMessage = _profileReadinessMessage;
+    if (profileMessage != null) {
+      return profileMessage;
+    }
+
     if (!_hasSubmissionEndpoint) {
       return 'Add a submission destination before sending this report.';
     }
@@ -108,14 +163,14 @@ class _CheckInScreenState extends State<CheckInScreen> {
     return null;
   }
 
-  bool get _supportsDesktopLayout {
-    final platform = _report?.device.platform;
-    return platform == 'macOS' || platform == 'Windows' || platform == 'Linux';
-  }
+  static final _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
   @override
   void initState() {
     super.initState();
+    _ownerNameController.addListener(_onProfileChanged);
+    _ownerEmailController.addListener(_onProfileChanged);
+    _endpointNameController.addListener(_onProfileChanged);
     _inspector = widget.inspector ?? EndpointInspector();
     _storedProfileRepository =
         widget.profileRepository ?? StoredProfileRepository();
@@ -127,11 +182,22 @@ class _CheckInScreenState extends State<CheckInScreen> {
 
   @override
   void dispose() {
+    _ownerNameController.removeListener(_onProfileChanged);
+    _ownerEmailController.removeListener(_onProfileChanged);
+    _endpointNameController.removeListener(_onProfileChanged);
     _ownerNameController.dispose();
     _ownerEmailController.dispose();
     _endpointNameController.dispose();
     _notesController.dispose();
     super.dispose();
+  }
+
+  void _onProfileChanged() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
   }
 
   Future<void> _load() async {
@@ -146,15 +212,15 @@ class _CheckInScreenState extends State<CheckInScreen> {
           await _endpointSettingsRepository.loadSubmissionEndpoint();
       final report = await _inspector.inspect();
 
+      if (!mounted) {
+        return;
+      }
+
       _ownerNameController.text = storedProfile.ownerName;
       _ownerEmailController.text = storedProfile.ownerEmail;
       _endpointNameController.text = storedProfile.endpointName.isNotEmpty
           ? storedProfile.endpointName
           : report.device.endpointName;
-
-      if (!mounted) {
-        return;
-      }
 
       setState(() {
         _submissionEndpoint = storedSubmissionEndpoint.isNotEmpty
@@ -214,13 +280,59 @@ class _CheckInScreenState extends State<CheckInScreen> {
     _showMessage('Submission destination saved.');
   }
 
+  bool _validateProfileForAction() {
+    final profileMessage = _profileReadinessMessage;
+    final formValid = _formKey.currentState?.validate() ?? true;
+    if (profileMessage == null && formValid) {
+      return true;
+    }
+
+    setState(() {
+      _currentStep = CheckInStep.identify;
+    });
+    _showMessage(profileMessage ?? 'Complete the owner and endpoint details.');
+    return false;
+  }
+
+  void _goToStep(CheckInStep step) {
+    setState(() {
+      _currentStep = step;
+    });
+  }
+
+  void _continueFromProfile() {
+    if (!_validateProfileForAction()) {
+      return;
+    }
+
+    _goToStep(CheckInStep.scan);
+  }
+
+  void _continueFromScan() {
+    if (_report == null) {
+      _showMessage('No inspection data is available yet.');
+      return;
+    }
+
+    _goToStep(CheckInStep.review);
+  }
+
+  void _continueFromReview() {
+    if (_hasPendingSecurityConfirmations) {
+      _showMessage('Confirm every manual-review item before continuing.');
+      return;
+    }
+
+    _goToStep(CheckInStep.submit);
+  }
+
   Future<void> _submit() async {
     if (_report == null) {
       _showMessage('No inspection data is available yet.');
       return;
     }
 
-    if (!_formKey.currentState!.validate()) {
+    if (!_validateProfileForAction()) {
       return;
     }
 
@@ -298,6 +410,7 @@ class _CheckInScreenState extends State<CheckInScreen> {
       _showMessage('Report submitted successfully.');
       setState(() {
         _isSubmitting = false;
+        _currentStep = CheckInStep.submit;
       });
     } on SubmissionException catch (error) {
       if (!mounted) {
@@ -377,12 +490,6 @@ class _CheckInScreenState extends State<CheckInScreen> {
     );
   }
 
-  bool _shouldUseDesktopLayout(BoxConstraints constraints) {
-    return _supportsDesktopLayout &&
-        constraints.maxWidth >= 1180 &&
-        constraints.maxHeight >= 780;
-  }
-
   String _submissionEndpointLabel(String endpoint) {
     final trimmed = endpoint.trim();
     if (trimmed.isEmpty) {
@@ -399,14 +506,6 @@ class _CheckInScreenState extends State<CheckInScreen> {
     return '${uri.scheme}://$host$path';
   }
 
-  String _submissionStatusCopy() {
-    if (_hasSubmissionEndpoint) {
-      return 'Reports will be sent to ${_submissionEndpointLabel(_submissionEndpoint)}.';
-    }
-
-    return 'This app does not yet know where to send check-ins. Open configuration and paste the Helixiora submission URL.';
-  }
-
   void _onReviewedStatusChanged(int index, CheckStatus status) {
     setState(() {
       _checks = List<SecurityCheckResult>.from(_checks)
@@ -421,105 +520,43 @@ class _CheckInScreenState extends State<CheckInScreen> {
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         title: const BrandTitle(),
+        actions: [
+          IconButton(
+            tooltip: 'Submission destination',
+            onPressed: _openEndpointSettings,
+            icon: const Icon(Icons.settings_outlined),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Form(
           key: _formKey,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              if (_shouldUseDesktopLayout(constraints)) {
-                return DesktopContent(
-                  report: _report,
-                  checks: _checks,
-                  isLoading: _isLoading,
-                  loadError: _loadError,
-                  hasSubmissionEndpoint: _hasSubmissionEndpoint,
-                  submissionLabel:
-                      _submissionEndpointLabel(_submissionEndpoint),
-                  onConfigureEndpoint: _openEndpointSettings,
-                  ownerNameController: _ownerNameController,
-                  ownerEmailController: _ownerEmailController,
-                  endpointNameController: _endpointNameController,
-                  notesController: _notesController,
-                  onRefresh: _isLoading ? null : _load,
-                  onSubmit: (_isSubmitting || _isLoading || _report == null)
-                      ? null
-                      : _submit,
-                  canSubmit: _canSubmitReport,
-                  submissionHint: _submissionReadinessMessage,
-                  isSubmitting: _isSubmitting,
-                  onReviewedStatusChanged: _onReviewedStatusChanged,
-                );
-              }
-
-              return RefreshIndicator(
-                onRefresh: _load,
-                child: ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Text(
-                      'Collect a Helixiora endpoint protection snapshot for ${AppConfig.organizationName}.',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Employees can review everything before it is submitted. Desktop platforms try automatic checks; mobile platforms fall back to manual review where the OS blocks inspection.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                    const SizedBox(height: 16),
-                    const BrandHero(),
-                    const SizedBox(height: 16),
-                    if (_isLoading) const LinearProgressIndicator(),
-                    if (_loadError != null) ...[
-                      ErrorCard(message: _loadError!),
-                      const SizedBox(height: 16),
-                    ],
-                    SubmissionEndpointCard(
-                      configured: _hasSubmissionEndpoint,
-                      summary: _submissionStatusCopy(),
-                      endpointLabel: _submissionEndpointLabel(
-                        _submissionEndpoint,
-                      ),
-                      onConfigure: _openEndpointSettings,
-                    ),
-                    const SizedBox(height: 16),
-                    if (_report != null) DeviceOverview(report: _report!),
-                    const SizedBox(height: 16),
-                    ProfileFormCard(
-                      ownerNameController: _ownerNameController,
-                      ownerEmailController: _ownerEmailController,
-                      endpointNameController: _endpointNameController,
-                      notesController: _notesController,
-                      compact: false,
-                      onRefresh: _isLoading ? null : _load,
-                      onSubmit: (_isSubmitting || _isLoading || _report == null)
-                          ? null
-                          : _submit,
-                      canSubmit: _canSubmitReport,
-                      submissionHint: _submissionReadinessMessage,
-                      isSubmitting: _isSubmitting,
-                    ),
-                    const SizedBox(height: 16),
-                    ..._checks.asMap().entries.map(
-                          (entry) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: SecurityCheckCard(
-                              check: entry.value,
-                              onReviewedStatusChanged: (status) {
-                                _onReviewedStatusChanged(entry.key, status);
-                              },
-                            ),
-                          ),
-                        ),
-                    const SizedBox(height: 8),
-                    const VersionFooter(),
-                  ],
-                ),
-              );
-            },
+          child: GuidedCheckInContent(
+            currentStep: _currentStep,
+            onStepSelected: _goToStep,
+            report: _report,
+            checks: _checks,
+            isLoading: _isLoading,
+            loadError: _loadError,
+            hasSubmissionEndpoint: _hasSubmissionEndpoint,
+            submissionLabel: _submissionEndpointLabel(_submissionEndpoint),
+            onConfigureEndpoint: _openEndpointSettings,
+            ownerNameController: _ownerNameController,
+            ownerEmailController: _ownerEmailController,
+            endpointNameController: _endpointNameController,
+            notesController: _notesController,
+            onRefresh: _load,
+            onContinueProfile: _continueFromProfile,
+            onContinueScan: _continueFromScan,
+            onContinueReview: _continueFromReview,
+            onSubmit: (_isSubmitting || _isLoading || _report == null)
+                ? null
+                : _submit,
+            canSubmit: _canSubmitReport,
+            readinessMessage: _submissionReadinessMessage,
+            profileReadinessMessage: _profileReadinessMessage,
+            isSubmitting: _isSubmitting,
+            onReviewedStatusChanged: _onReviewedStatusChanged,
           ),
         ),
       ),

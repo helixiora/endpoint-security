@@ -13,6 +13,11 @@ class ProfileFormCard extends StatelessWidget {
     required this.canSubmit,
     required this.submissionHint,
     required this.isSubmitting,
+    this.title = 'Owner and endpoint',
+    this.description,
+    this.submitLabel,
+    this.submitIcon = Icons.arrow_forward_rounded,
+    this.showRefreshAction = true,
   });
 
   final TextEditingController ownerNameController;
@@ -25,6 +30,11 @@ class ProfileFormCard extends StatelessWidget {
   final bool canSubmit;
   final String? submissionHint;
   final bool isSubmitting;
+  final String title;
+  final String? description;
+  final String? submitLabel;
+  final IconData submitIcon;
+  final bool showRefreshAction;
 
   @override
   Widget build(BuildContext context) {
@@ -60,11 +70,20 @@ class ProfileFormCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Owner and record',
+              title,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
               ),
             ),
+            if (description != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                description!,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             if (compact) ...[
               Row(
@@ -187,11 +206,12 @@ class ProfileFormCard extends StatelessWidget {
               spacing: 10,
               runSpacing: 10,
               children: [
-                FilledButton.icon(
-                  onPressed: onRefresh,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Refresh'),
-                ),
+                if (showRefreshAction)
+                  OutlinedButton.icon(
+                    onPressed: onRefresh,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Refresh scan'),
+                  ),
                 FilledButton.tonalIcon(
                   onPressed: onSubmit,
                   icon: isSubmitting
@@ -200,9 +220,10 @@ class ProfileFormCard extends StatelessWidget {
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.upload_outlined),
+                      : Icon(submitIcon),
                   label: Text(
-                    canSubmit ? 'Review & submit' : 'Review check-in',
+                    submitLabel ??
+                        (canSubmit ? 'Review & submit' : 'Review check-in'),
                   ),
                 ),
               ],

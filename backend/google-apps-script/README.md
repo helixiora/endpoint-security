@@ -14,6 +14,77 @@ This Apps Script receives the app's signed JSON payload and appends one readable
    - Who has access: your preferred internal audience. Use `Anyone with the link` only when the HMAC secret is treated as the access control boundary.
 7. Copy the deployment URL and use it as the Flutter app's `SUBMISSION_ENDPOINT`.
 
+## Deploying with clasp
+
+Use `clasp` when updating an existing Apps Script project from this repository.
+The source deployment can be pinned to an immutable version, so pushing code is
+not enough: create a version and redeploy the existing web app deployment.
+
+Prerequisites:
+
+- Enable the Apps Script API for your Google account at <https://script.google.com/home/usersettings>.
+- Store the script project ID as `GOOGLE_APPS_SCRIPT_ID` in the root `.env`.
+- Store the active `/exec` web app URL as `SUBMISSION_ENDPOINT` in the root `.env`.
+- Keep generated clasp config local; do not commit `.clasp.json` or `.clasprc.json`.
+- Authenticate clasp:
+
+  ```bash
+  npx @google/clasp@latest login
+  ```
+
+Deploy the repository script while preserving the live project manifest:
+
+```bash
+set -a
+source .env
+set +a
+
+deploy_root="$(mktemp -d)"
+npx @google/clasp@latest clone "$GOOGLE_APPS_SCRIPT_ID" --rootDir "$deploy_root"
+cp backend/google-apps-script/Code.gs "$deploy_root/Code.js"
+
+cat > "$deploy_root/.clasp.json" <<EOF
+{"scriptId":"$GOOGLE_APPS_SCRIPT_ID","rootDir":"$deploy_root"}
+EOF
+
+(
+  cd "$deploy_root"
+  npx @google/clasp@latest push -f
+  npx @google/clasp@latest version "Update endpoint check-in backend"
+  npx @google/clasp@latest deployments
+)
+```
+
+If `SUBMISSION_ENDPOINT` points at a version-pinned deployment, update that
+deployment ID to the new version. Run this in the same shell as the clone step,
+or set `deploy_root` to that temporary directory again:
+
+```bash
+set -a
+source .env
+set +a
+
+deployment_id="$(
+  node -e 'const url = process.env.SUBMISSION_ENDPOINT || "";
+const match = url.match(/\/macros\/s\/([^/]+)\//);
+if (!match) process.exit(1);
+process.stdout.write(match[1]);'
+)"
+
+(
+  cd "$deploy_root"
+  npx @google/clasp@latest deploy \
+    --deploymentId "$deployment_id" \
+    --versionNumber NEW_VERSION_NUMBER \
+    --description "Update endpoint check-in backend"
+)
+```
+
+For the deployment that the app uses, `clasp deployments` should show the
+deployment ID from `SUBMISSION_ENDPOINT` pointing at the new version, not the old
+pinned version. A schema-version smoke test with an invalid signature should now
+return `Invalid envelope signature`, not `Unsupported envelope schema version`.
+
 ## Notes
 
 - The script creates an `Endpoint Check-Ins` tab automatically with readable columns such as owner, endpoint, platform, overall status, findings, and one `Check: ...` column per submitted check.
