@@ -212,15 +212,15 @@ class _CheckInScreenState extends State<CheckInScreen> {
           await _endpointSettingsRepository.loadSubmissionEndpoint();
       final report = await _inspector.inspect();
 
+      if (!mounted) {
+        return;
+      }
+
       _ownerNameController.text = storedProfile.ownerName;
       _ownerEmailController.text = storedProfile.ownerEmail;
       _endpointNameController.text = storedProfile.endpointName.isNotEmpty
           ? storedProfile.endpointName
           : report.device.endpointName;
-
-      if (!mounted) {
-        return;
-      }
 
       setState(() {
         _submissionEndpoint = storedSubmissionEndpoint.isNotEmpty

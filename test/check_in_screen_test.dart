@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:endpoint_security_checkin/src/app.dart';
 import 'package:endpoint_security_checkin/src/inspector/endpoint_inspector.dart';
 import 'package:endpoint_security_checkin/src/models.dart';
@@ -8,34 +10,45 @@ import 'package:shared_preferences/shared_preferences.dart';
 class _FakeInspector extends EndpointInspector {
   @override
   Future<EndpointInspectionReport> inspect() async {
-    return EndpointInspectionReport(
-      collectedAt: DateTime.utc(2026, 6, 1, 12),
-      device: const DeviceContext(
-        platform: 'macOS',
-        osVersion: '15.5.0',
-        deviceModel: 'MacBookPro18,3',
-        endpointName: 'janes-mbp',
-        deviceIdentifierLabel: 'Serial number',
-        deviceIdentifier: 'C02TEST123',
-      ),
-      checks: const [
-        SecurityCheckResult(
-          id: 'disk_encryption',
-          label: 'Hard disk encryption',
-          detectedStatus: CheckStatus.enabled,
-          detectedAutomatically: true,
-          summary: 'FileVault is enabled.',
-        ),
-        SecurityCheckResult(
-          id: 'endpoint_protection',
-          label: 'Endpoint malware protection / EDR',
-          detectedStatus: CheckStatus.manualReview,
-          detectedAutomatically: false,
-          summary: 'Review required.',
-        ),
-      ],
-    );
+    return _fakeReport();
   }
+}
+
+class _DelayedInspector extends EndpointInspector {
+  final completer = Completer<EndpointInspectionReport>();
+
+  @override
+  Future<EndpointInspectionReport> inspect() => completer.future;
+}
+
+EndpointInspectionReport _fakeReport() {
+  return EndpointInspectionReport(
+    collectedAt: DateTime.utc(2026, 6, 1, 12),
+    device: const DeviceContext(
+      platform: 'macOS',
+      osVersion: '15.5.0',
+      deviceModel: 'MacBookPro18,3',
+      endpointName: 'janes-mbp',
+      deviceIdentifierLabel: 'Serial number',
+      deviceIdentifier: 'C02TEST123',
+    ),
+    checks: const [
+      SecurityCheckResult(
+        id: 'disk_encryption',
+        label: 'Hard disk encryption',
+        detectedStatus: CheckStatus.enabled,
+        detectedAutomatically: true,
+        summary: 'FileVault is enabled.',
+      ),
+      SecurityCheckResult(
+        id: 'endpoint_protection',
+        label: 'Endpoint malware protection / EDR',
+        detectedStatus: CheckStatus.manualReview,
+        detectedAutomatically: false,
+        summary: 'Review required.',
+      ),
+    ],
+  );
 }
 
 void main() {
@@ -98,6 +111,23 @@ void main() {
 
     expect(find.text('Hard disk encryption'), findsOneWidget);
     expect(find.text('Endpoint malware protection / EDR'), findsOneWidget);
+  });
+
+  testWidgets('ignores late inspection results after disposal', (tester) async {
+    final inspector = _DelayedInspector();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CheckInScreen(inspector: inspector),
+      ),
+    );
+    await tester.pump();
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+    inspector.completer.complete(_fakeReport());
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('review dialog blocks submission while confirmations pend',
