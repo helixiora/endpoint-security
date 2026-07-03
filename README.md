@@ -56,6 +56,7 @@ The included Apps Script flattens each submission into one spreadsheet column pe
 - Keys containing `/` or `~` are escaped so column names stay stable.
 
 See [`backend/google-apps-script/README.md`](backend/google-apps-script/README.md) for setup details.
+That README also documents updating an existing Apps Script deployment with `clasp`.
 
 ## Developer workflow
 

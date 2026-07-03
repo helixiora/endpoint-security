@@ -8,6 +8,8 @@
 .packages
 .pub/
 .vscode/
+.env
+/.clasp.json
 /build/
 /coverage/
 /ios/Flutter/Flutter.podspec

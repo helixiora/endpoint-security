@@ -58,21 +58,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('renders inspected checks and device context', (tester) async {
-    await pumpScreen(tester);
-
-    expect(find.text('Hard disk encryption'), findsOneWidget);
-    expect(find.text('Endpoint malware protection / EDR'), findsOneWidget);
-    expect(find.textContaining('C02TEST123'), findsWidgets);
-
-    // The detected endpoint name pre-fills the form.
-    expect(find.widgetWithText(TextFormField, 'janes-mbp'), findsOneWidget);
-  });
-
-  testWidgets('review dialog blocks submission while confirmations pend',
-      (tester) async {
-    await pumpScreen(tester);
-
+  Future<void> completeIdentity(WidgetTester tester) async {
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Owner name'),
       'Jane Doe',
@@ -82,30 +68,66 @@ void main() {
       'jane@example.com',
     );
 
-    await tester.ensureVisible(find.text('Review check-in'));
-    await tester.tap(find.text('Review check-in'));
+    await tester.tap(find.text('Continue to scan'));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> openReviewStep(WidgetTester tester) async {
+    await completeIdentity(tester);
+    await tester.tap(find.text('Review 1 open item'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('guides through identity before showing inspected checks',
+      (tester) async {
+    await pumpScreen(tester);
+
+    expect(find.text('Complete endpoint check-in'), findsOneWidget);
+    expect(find.text('Confirm who owns this endpoint'), findsOneWidget);
+
+    // The detected endpoint name pre-fills the form.
+    expect(find.widgetWithText(TextFormField, 'janes-mbp'), findsOneWidget);
+
+    await completeIdentity(tester);
+
+    expect(find.text('Detected device'), findsOneWidget);
+    expect(find.textContaining('C02TEST123'), findsWidgets);
+
+    await tester.tap(find.text('Review 1 open item'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Review submission'), findsOneWidget);
+    expect(find.text('Hard disk encryption'), findsOneWidget);
+    expect(find.text('Endpoint malware protection / EDR'), findsOneWidget);
+  });
+
+  testWidgets('review dialog blocks submission while confirmations pend',
+      (tester) async {
+    await pumpScreen(tester);
+    await openReviewStep(tester);
+
+    await tester.tap(find.text('Submit').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Review check-in').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Check-in summary'), findsOneWidget);
     expect(find.textContaining('(confirmation required)'), findsOneWidget);
     // Without a destination, secret, and confirmed checks there is no
     // Submit action, only Cancel and Copy JSON.
-    expect(find.widgetWithText(FilledButton, 'Submit'), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Submit check-in'), findsNothing);
     expect(find.text('Copy JSON'), findsOneWidget);
   });
 
   testWidgets('employee confirmation resolves a manual-review check',
       (tester) async {
     await pumpScreen(tester);
+    await openReviewStep(tester);
 
-    await tester.ensureVisible(find.text('Select status'));
-    await tester.tap(find.text('Select status'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Enabled').last);
+    await tester.tap(find.byKey(const ValueKey('endpoint_protection:enabled')));
     await tester.pumpAndSettle();
 
     // Both checks now report as compliant.
-    expect(find.text('Compliant and secure.'), findsNWidgets(2));
+    expect(find.text('Ready to attest.'), findsNWidgets(2));
+    expect(find.text('Continue to submit'), findsOneWidget);
   });
 }

@@ -95,33 +95,23 @@ class SecurityCheckCard extends StatelessWidget {
             ),
             if (check.requiresUserConfirmation) ...[
               const SizedBox(height: 12),
-              DropdownButtonFormField<CheckStatus>(
-                key: ValueKey('${check.id}:${check.reviewedStatus.wireValue}'),
-                initialValue: check.reviewedStatus,
-                isDense: compact,
-                decoration: InputDecoration(
-                  labelText: 'Employee confirmation',
-                  border: const OutlineInputBorder(),
-                  contentPadding: compact
-                      ? const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        )
-                      : null,
-                ),
-                items: _confirmationStatuses
-                    .map(
-                      (status) => DropdownMenuItem(
-                        value: status,
-                        child: Text(_confirmationLabel(status)),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    onReviewedStatusChanged(value);
-                  }
-                },
+              Text(
+                'Confirm what is true on this device',
+                style: theme.textTheme.labelLarge,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _confirmationStatuses.map((status) {
+                  final selected = check.reviewedStatus == status;
+                  return ChoiceChip(
+                    key: ValueKey('${check.id}:${status.wireValue}'),
+                    label: Text(_confirmationLabel(status)),
+                    selected: selected,
+                    onSelected: (_) => onReviewedStatusChanged(status),
+                  );
+                }).toList(),
               ),
             ],
             if (!compact &&
@@ -173,15 +163,14 @@ String? _reviewHint(SecurityCheckResult check) {
 }
 
 const _confirmationStatuses = [
-  CheckStatus.manualReview,
   CheckStatus.enabled,
   CheckStatus.disabled,
-  CheckStatus.unknown,
 ];
 
 String _confirmationLabel(CheckStatus status) {
   return switch (status) {
-    CheckStatus.manualReview => 'Select status',
+    CheckStatus.enabled => 'Enabled',
+    CheckStatus.disabled => 'Disabled',
     _ => status.label,
   };
 }
@@ -191,7 +180,7 @@ _ReviewFeedback _securityFeedback(SecurityCheckResult check) {
     return const _ReviewFeedback(
       icon: Icons.check_circle_rounded,
       color: Color(0xFF1F7A41),
-      label: 'Compliant and secure.',
+      label: 'Ready to attest.',
     );
   }
 
@@ -199,7 +188,7 @@ _ReviewFeedback _securityFeedback(SecurityCheckResult check) {
     return const _ReviewFeedback(
       icon: Icons.cancel_rounded,
       color: Color(0xFFC23A36),
-      label: 'Not compliant. This protection is off or missing.',
+      label: 'Needs attention before or after submission.',
     );
   }
 
