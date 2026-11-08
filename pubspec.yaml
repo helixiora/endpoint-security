@@ -9,7 +9,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^2.0.0
   crypto: ^3.0.8
   device_info_plus: ^13.3.0
   http: ^1.2.2
