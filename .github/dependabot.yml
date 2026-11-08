@@ -39,6 +39,15 @@ updates:
     directory: /android
     schedule:
       interval: weekly
+    # Keep updates in the Android toolchain validated with pinned Flutter 3.41.4.
+    # Revisit these bounds with the Flutter/AGP 9 migration; see docs/android-toolchain.md.
+    ignore:
+      - dependency-name: com.android.application
+        versions: ['>=9.0.0']
+      - dependency-name: gradle-wrapper
+        versions: ['>=9.0.0']
+      - dependency-name: org.jetbrains.kotlin.android
+        versions: ['>=2.4.0']
     open-pull-requests-limit: 5
     commit-message:
       prefix: chore(deps)
