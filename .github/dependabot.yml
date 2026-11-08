@@ -5,18 +5,7 @@ updates:
     schedule:
       interval: weekly
     groups:
-      github-actions-minor-patch:
-        patterns:
-          - '*'
-        update-types:
-          - minor
-          - patch
-      github-actions-major:
-        patterns:
-          - '*'
-        update-types:
-          - major
-      remaining-version-updates:
+      all-dependencies:
         patterns:
           - '*'
       security-updates:
@@ -34,18 +23,7 @@ updates:
     schedule:
       interval: weekly
     groups:
-      flutter-pub-minor-patch:
-        patterns:
-          - '*'
-        update-types:
-          - minor
-          - patch
-      flutter-pub-major:
-        patterns:
-          - '*'
-        update-types:
-          - major
-      remaining-version-updates:
+      all-dependencies:
         patterns:
           - '*'
       security-updates:
